@@ -7,7 +7,7 @@ try {
       "/*": () => new Response("NOT FOUND", { status: 404 })
     },
 
-    port: 3000,
+    port: process.env.PORT || 3000,
     development: process.env.NODE_ENV !== "production" && {
       // Enable browser hot reloading in development
       hmr: true,
