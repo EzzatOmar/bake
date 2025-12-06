@@ -225,16 +225,9 @@ async function removeFrontendDependencies(projectRoot: string, options: DropFron
   ];
 
   try {
-    // Remove regular dependencies
-    const regularDeps = frontendDeps.filter(dep => !dep.startsWith('@types/') && !dep.startsWith('@react-grab/'));
-    if (regularDeps.length > 0) {
-      execSync(`bun remove ${regularDeps.join(' ')}`, { stdio: 'inherit' });
-    }
-
-    // Remove dev dependencies
-    const devDeps = frontendDeps.filter(dep => dep.startsWith('@types/') || dep.startsWith('@react-grab/'));
-    if (devDeps.length > 0) {
-      execSync(`bun remove -D ${devDeps.join(' ')}`, { stdio: 'inherit' });
+    // Remove all frontend dependencies (Bun doesn't separate dev/regular deps with -D flag)
+    if (frontendDeps.length > 0) {
+      execSync(`bun remove ${frontendDeps.join(' ')}`, { stdio: 'inherit' });
     }
 
     log('✅ Frontend dependencies removed');
@@ -368,16 +361,16 @@ Options:
   --dry-run       Show what would be removed without actually removing
   --help, -h      Show this help message
 
-Behavior:
-  - Removes src/components/ directory
-  - Removes src/pages/ directory  
-  - Removes src/global.css
-  - Removes src/css-modules.d.ts
-  - Removes src/dev.tsx
-  - Renames src/index.tsx back to src/index.ts
-  - Removes frontend dependencies (unless --keep-deps)
-  - Reverts package.json scripts to backend-only
-  - Removes CSS modules from tsconfig.json
+ Behavior:
+   - Removes src/components/ directory
+   - Removes src/pages/ directory  
+   - Removes src/global.css
+   - Removes src/css-modules.d.ts
+   - Removes src/dev.tsx
+   - Renames src/index.tsx back to src/index.ts
+   - Removes all frontend dependencies: react, react-dom, @types/react, @types/react-dom, @react-grab/opencode, react-grab (unless --keep-deps)
+   - Reverts package.json scripts to backend-only
+   - Removes CSS modules from tsconfig.json
 
 Examples:
   bun run drop-frontend                    # Remove everything
