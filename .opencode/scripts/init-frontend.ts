@@ -33,8 +33,8 @@ function isFrontendAlreadyInitialized(srcDir: string, componentsDir: string, pag
   // Check if all essential frontend files exist
   // Check for pages to ensure full initialization
   const globalCss = join(srcDir, 'global.css');
-  const headerComponent = join(componentsDir, 'Header.tsx');
-  const navigationComponent = join(componentsDir, 'Navigation.tsx');
+  const headerComponent = join(componentsDir, 'comp.header.tsx');
+  const navigationComponent = join(componentsDir, 'comp.navigation.tsx');
   const indexHtml = join(pagesDir, 'index.html');
   const indexTsx = join(pagesDir, 'index.tsx');
   const demoHtml = join(pagesDir, 'demo.html');
@@ -567,9 +567,9 @@ body {
 
 function createSharedComponents(componentsDir: string, force: boolean = false) {
   // Check if components already exist
-  const headerFile = join(componentsDir, 'Header.tsx');
-  const navigationFile = join(componentsDir, 'Navigation.tsx');
-  const layoutFile = join(componentsDir, 'Layout.tsx');
+  const headerFile = join(componentsDir, 'comp.header.tsx');
+  const navigationFile = join(componentsDir, 'comp.navigation.tsx');
+  const layoutFile = join(componentsDir, 'comp.layout.tsx');
   
   const componentsExist = existsSync(headerFile) && existsSync(navigationFile) && existsSync(layoutFile);
   
@@ -595,9 +595,9 @@ export const Header: React.FC<HeaderProps> = ({ title }) => {
 };
 `;
     writeFileSync(headerFile, headerComponent);
-    console.log('✅ Created Header.tsx');
+    console.log('✅ Created comp.header.tsx');
   } else {
-    console.log('ℹ️  Header.tsx already exists, skipping');
+    console.log('ℹ️  comp.header.tsx already exists, skipping');
   }
 
   // Navigation component
@@ -620,9 +620,9 @@ export const Navigation: React.FC = () => {
 };
 `;
     writeFileSync(navigationFile, navigationComponent);
-    console.log('✅ Created Navigation.tsx');
+    console.log('✅ Created comp.navigation.tsx');
   } else {
-    console.log('ℹ️  Navigation.tsx already exists, skipping');
+    console.log('ℹ️  comp.navigation.tsx already exists, skipping');
   }
 
   // Layout component
@@ -644,9 +644,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 };
 `;
     writeFileSync(layoutFile, layoutComponent);
-    console.log('✅ Created Layout.tsx');
+    console.log('✅ Created comp.layout.tsx');
   } else {
-    console.log('ℹ️  Layout.tsx already exists, skipping');
+    console.log('ℹ️  comp.layout.tsx already exists, skipping');
   }
 }
 
