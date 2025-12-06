@@ -8,6 +8,7 @@ import {
     getDefaultExportReturnType,
     getDefaultExportParameterCount,
     getDefaultExportParameters,
+    getDatabaseConnectionImports,
     hasDefaultExport,
     isDefaultExportFunction,
     parseTypeScript,
@@ -277,6 +278,31 @@ export function assertTxFirstParameterType(args: { sourceFile: SourceFile, direc
 }
 
 /**
+ * Rule: Database connection imports must be type-only
+ */
+export function assertDatabaseConnectionImportsAreTypeOnly(args: { sourceFile: any, directory: string, content: string, filePath: string }) {
+    const dbImports = getDatabaseConnectionImports(args.sourceFile);
+    
+    for (const dbImport of dbImports) {
+        if (!dbImport.isTypeOnly) {
+            fileLog("assertDatabaseConnectionImportsAreTypeOnly", "non-type-only db import found", dbImport.importText);
+            throw new Error(
+                `Database connection imports must be type-only. ` +
+                `Found non-type-only import: ${dbImport.importText}. ` +
+                `Use 'import type { ${dbImport.importedNames.join(', ')} } from "${dbImport.modulePath}"' ` +
+                `or 'import { type ${dbImport.importedNames.join(', type ')} } from "${dbImport.modulePath}"'. ` +
+                `Database connections should only be used for typing, not runtime values. ` +
+                `You might want to read .opencode/agent/function-builder.md`
+            );
+        }
+    }
+    
+    if (dbImports.length > 0) {
+        fileLog("assertDatabaseConnectionImportsAreTypeOnly", "all db imports are type-only", dbImports.length);
+    }
+}
+
+/**
  * Rule: TPortal's db variable must be properly typed
  */
 export async function assertDbPortalType(args: { directory: string, content: string, filePath: string }) {
@@ -535,6 +561,9 @@ export async function checkFnAfterWrite(args: { directory: string, content: stri
     if (isFxFunction(args) || isTxFunction(args)) {
         await assertDbPortalType(args);
     }
+    
+    // Check that database connection imports are type-only
+    assertDatabaseConnectionImportsAreTypeOnly({ sourceFile, ...args });
 }
 
 export async function checkFnAfterEdit(args: { directory: string, content: string, filePath: string }) {
@@ -573,4 +602,7 @@ export async function checkFnAfterEdit(args: { directory: string, content: strin
     if (isFxFunction(args) || isTxFunction(args)) {
         await assertDbPortalType(args);
     }
+    
+    // Check that database connection imports are type-only
+    assertDatabaseConnectionImportsAreTypeOnly({ sourceFile, ...args });
 }

@@ -454,3 +454,76 @@ export function getTypeLiteralPropertyNames(typeNode: ts.TypeNode): string[] {
 
   return properties;
 }
+
+/**
+ * Get all imports from database connection files (conn.*.ts)
+ * Returns array of import statements that match the pattern
+ */
+export function getDatabaseConnectionImports(sourceFile: ts.SourceFile): Array<{
+  importText: string;
+  isTypeOnly: boolean;
+  modulePath: string;
+  importedNames: string[];
+}> {
+  const dbImports: Array<{
+    importText: string;
+    isTypeOnly: boolean;
+    modulePath: string;
+    importedNames: string[];
+  }> = [];
+
+  function visit(node: ts.Node) {
+    if (ts.isImportDeclaration(node)) {
+      const moduleSpecifier = node.moduleSpecifier;
+      if (ts.isStringLiteral(moduleSpecifier)) {
+        const importPath = moduleSpecifier.text;
+        // Check if import is from a database connection file (conn.*.ts)
+        const normalizedPath = importPath.replace(/\\/g, '/');
+        const connFileRegex = /conn\.[^/]+\.ts$/;
+        
+        if (connFileRegex.test(normalizedPath)) {
+          const importedNames: string[] = [];
+          let isTypeOnly = false;
+          
+          if (node.importClause) {
+            // Check if the entire import is type-only: import type { ... } from '...'
+            isTypeOnly = node.importClause.isTypeOnly || false;
+            
+            // Default import: import dbName from '...'
+            if (node.importClause.name) {
+              importedNames.push(node.importClause.name.text);
+            }
+            
+            // Named imports: import { dbName, type helper } from '...'
+            if (node.importClause.namedBindings) {
+              if (ts.isNamedImports(node.importClause.namedBindings)) {
+                node.importClause.namedBindings.elements.forEach(element => {
+                  importedNames.push(element.name.text);
+                  // If any element is type-only, mark the whole import as type-only
+                  if (element.isTypeOnly) {
+                    isTypeOnly = true;
+                  }
+                });
+              }
+              // Namespace import: import * as db from '...'
+              else if (ts.isNamespaceImport(node.importClause.namedBindings)) {
+                importedNames.push(node.importClause.namedBindings.name.text);
+              }
+            }
+          }
+          
+          dbImports.push({
+            importText: node.getText(sourceFile),
+            isTypeOnly,
+            modulePath: importPath,
+            importedNames
+          });
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return dbImports;
+}
