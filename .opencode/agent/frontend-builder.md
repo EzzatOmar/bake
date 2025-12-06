@@ -25,9 +25,7 @@ Unlike Single Page Applications (SPAs), our frontend uses an MPA approach where:
 ```
 src/
 ├── components/          # Shared React components
-│   ├── Header.tsx      # Reusable header component
-│   ├── Navigation.tsx  # Navigation component
-│   └── Layout.tsx      # Layout wrapper component
+│   ├── comp.*.tsx      # Reusable component
 ├── pages/              # Page-specific files
 │   ├── index.html      # Homepage HTML entry point
 │   ├── index.tsx       # Homepage React component + entry point
@@ -268,19 +266,24 @@ root.render(<PageName />);
 
 ### Shared Component Pattern
 ```tsx
-import React from 'react';
+import { Menu } from '@base-ui-components/react/menu';
+import styles from './menu.css';
 
-interface ComponentProps {
-  // Prop definitions
-}
-
-export const ComponentName: React.FC<ComponentProps> = ({ prop }) => {
+export default function ExampleMenu() {
   return (
-    <div className="component-name">
-      {/* Component JSX */}
-    </div>
+    <Menu.Root>
+      <Menu.Trigger className={styles.Button}>Song</Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner className={styles.Positioner} sideOffset={8}>
+          <Menu.Popup className={styles.Popup}>
+            <Menu.Item className={styles.Item}>Add to Library</Menu.Item>
+            <Menu.Item className={styles.Item}>Add to Playlist</Menu.Item>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   );
-};
+}
 ```
 
 
