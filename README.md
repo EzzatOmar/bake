@@ -4,6 +4,13 @@
 
 BAKE generates production-ready fullstack TypeScript applications following the Functional Core, Imperative Shell pattern. It creates APIs, CLIs, and React frontends with strict layering that ensures testability and maintainability from day one.
 
+## Quick Start
+
+```bash
+bun run install
+bun run dev
+```
+
 ## Architecture in 5 Layers
 
 ```
@@ -17,11 +24,6 @@ index.tsx  →  API/CLI/PAGES  →  CTRL  →  FUNC  →  DB/SERVICE
 - Shell (API/CLI/DB) handles side effects
 - Plan top-down, implement bottom-up
 
-## Quick Start
-
-```bash
-bun run dev
-```
 
 That's it. BAKE handles the rest.
 
