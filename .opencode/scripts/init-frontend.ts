@@ -749,20 +749,9 @@ async function updatePackageJsonForIndexRename(projectRoot: string) {
   if (packageJson.module === 'src/index.ts') {
     packageJson.module = 'src/index.tsx';
   }
-  
-  // Update scripts that reference index.ts to use index.tsx instead
-  if (packageJson.scripts) {
-    // Use regex to replace all src/index.ts with src/index.tsx in scripts
-    Object.keys(packageJson.scripts).forEach(scriptName => {
-      const scriptValue = packageJson.scripts[scriptName];
-      if (typeof scriptValue === 'string') {
-        packageJson.scripts[scriptName] = scriptValue.replace(/src\/index\.ts/g, 'src/index.tsx');
-      }
-    });
-  }
 
   writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
-  console.log('✅ Updated package.json to use index.tsx');
+  console.log('✅ Updated package.json module to use index.tsx');
 }
 
 async function updateTsConfigForCssModules(projectRoot: string) {
@@ -813,11 +802,13 @@ async function updatePackageJson(_projectRoot: string) {
     packageJson.scripts = {};
   }
 
-  // Update or add scripts
-  packageJson.scripts.dev = "bun --hot run src/index.tsx";
-  packageJson.scripts.start = "bun run src/index.tsx";
-  packageJson.scripts.build = "bun build --target=bun --production --outdir=dist ./src/index.tsx";
-  packageJson.scripts.typecheck = "bunx tsc --noEmit --project tsconfig.json";
+  // Use regex to replace all src/index.ts with src/index.tsx in scripts
+  Object.keys(packageJson.scripts).forEach(scriptName => {
+    const scriptValue = packageJson.scripts[scriptName];
+    if (typeof scriptValue === 'string') {
+      packageJson.scripts[scriptName] = scriptValue.replace(/src\/index\.ts/g, 'src/index.tsx');
+    }
+  });
 
   writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
 }

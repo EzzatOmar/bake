@@ -18,6 +18,10 @@ const api<Name>: Partial<Record<Serve.HTTPMethod, Serve.Handler<BunRequest<'/api
 export default api<Name>;
 ```
 
+Match the endpoint path with file name.
+/api/boards/:id -> api.boards.:id
+/api/users -> api.users
+
 ## Critical Requirements
 
 - ✅ **Import types**: `import type { BunRequest, Serve, Server } from 'bun'`
