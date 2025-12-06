@@ -6,11 +6,49 @@ import { checkCtrlAfterEdit, checkCtrlAfterWrite, checkCtrlBeforeEdit, checkCtrl
 import { checkDbAfterEdit, checkDbAfterWrite, checkDbBeforeEdit, checkDbBeforeWrite } from "../helper-fns/database-checks";
 import { checkDocumentationBeforeWrite } from "../helper-fns/documentation-checks";
 import { fileLog } from "../helper-fns/file-logger";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 
 export type TCheckResult = {
   message?: string; // message to send to ai
 } | undefined;
+
+/**
+ * Initialize the required folder structure for the Visual Backend framework
+ */
+async function initializeFolderStructure(directory: string): Promise<void> {
+  fileLog("initializeFolderStructure", "Starting folder initialization");
+  
+  const requiredFolders = [
+    "src/function",
+    "src/controller", 
+    "src/api",
+    "src/database",
+    "src/error",
+    "database-storage",
+    "one-off-scripts",
+    "docs"
+  ];
+
+  for (const folder of requiredFolders) {
+    const folderPath = path.join(directory, folder);
+    
+    try {
+      if (!fs.existsSync(folderPath)) {
+        fs.mkdirSync(folderPath, { recursive: true });
+        fileLog("initializeFolderStructure", `Created folder: ${folderPath}`);
+      } else {
+        fileLog("initializeFolderStructure", `Folder already exists: ${folderPath}`);
+      }
+    } catch (error) {
+      fileLog("initializeFolderStructure", `Error creating folder ${folderPath}:`, error);
+      throw new Error(`Failed to create required folder: ${folder}. Please check permissions.`);
+    }
+  }
+  
+  fileLog("initializeFolderStructure", "Folder initialization completed");
+}
 
 /**
  * How to write an opencode plugin? -> https://opencode.ai/docs/plugins/
@@ -71,7 +109,13 @@ export type TCheckResult = {
 export const CustomToolsPlugin: Plugin = async (ctx) => {
   fileLog(JSON.stringify(ctx))
 
-
+  // Initialize folder structure at plugin startup
+  try {
+    await initializeFolderStructure(ctx.directory);
+  } catch (error) {
+    fileLog("CustomToolsPlugin", "Failed to initialize folder structure:", error);
+    // Don't throw here - let the plugin continue even if folder creation fails
+  }
 
   return {
     "tool.execute.before": async (input, output) => {
