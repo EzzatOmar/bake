@@ -4,6 +4,7 @@ import { checkNoTsFilesInRoot, checkNoJsFiles } from "../helper-fns/root-file-ch
 import { checkApiAfterEdit, checkApiAfterWrite, checkApiBeforeEdit, checkApiBeforeWrite } from "../helper-fns/api-checks";
 import { checkCtrlAfterEdit, checkCtrlAfterWrite, checkCtrlBeforeEdit, checkCtrlBeforeWrite } from "../helper-fns/controller-checks";
 import { checkDbAfterEdit, checkDbAfterWrite, checkDbBeforeEdit, checkDbBeforeWrite } from "../helper-fns/database-checks";
+import { checkComponentAfterEdit, checkComponentAfterWrite, checkComponentBeforeEdit, checkComponentBeforeWrite } from "../helper-fns/component-checks";
 import { checkDocumentationBeforeWrite } from "../helper-fns/documentation-checks";
 import { fileLog } from "../helper-fns/file-logger";
 import * as fs from "node:fs";
@@ -24,6 +25,7 @@ async function initializeFolderStructure(directory: string): Promise<void> {
     "src/function",
     "src/controller", 
     "src/api",
+    "src/component",
     "src/database",
     "src/error",
     "database-storage",
@@ -127,6 +129,7 @@ export const CustomToolsPlugin: Plugin = async (ctx) => {
         await checkFnBeforeWrite({ directory: ctx.directory, filePath: output.args.filePath, content: output.args.content })
         await checkApiBeforeWrite({ directory: ctx.directory, filePath: output.args.filePath, content: output.args.content })
         await checkCtrlBeforeWrite({ directory: ctx.directory, filePath: output.args.filePath, content: output.args.content })
+        await checkComponentBeforeWrite({ directory: ctx.directory, filePath: output.args.filePath, content: output.args.content })
         await checkDbBeforeWrite({ directory: ctx.directory, filePath: output.args.filePath, content: output.args.content })
       } else if (input.tool === "edit") {
         checkNoTsFilesInRoot({ directory: ctx.directory, filePath: output.args.filePath })
@@ -134,6 +137,7 @@ export const CustomToolsPlugin: Plugin = async (ctx) => {
         await checkFnBeforeEdit({ directory: ctx.directory, filePath: output.args.filePath, content: output.args.oldString })
         await checkApiBeforeEdit({ directory: ctx.directory, filePath: output.args.filePath, content: output.args.oldString })
         await checkCtrlBeforeEdit({ directory: ctx.directory, filePath: output.args.filePath, content: output.args.oldString })
+        await checkComponentBeforeEdit({ directory: ctx.directory, filePath: output.args.filePath, content: output.args.oldString })
         await checkDbBeforeEdit({ directory: ctx.directory, filePath: output.args.filePath, content: output.args.oldString })
       }
     },
@@ -146,6 +150,7 @@ export const CustomToolsPlugin: Plugin = async (ctx) => {
           await checkFnAfterWrite({ directory: ctx.directory, filePath: output.metadata.filepath, content })
           const apiCheckResult = await checkApiAfterWrite({ directory: ctx.directory, filePath: output.metadata.filepath, content })
           await checkCtrlAfterWrite({ directory: ctx.directory, filePath: output.metadata.filepath, content })
+          await checkComponentAfterWrite({ directory: ctx.directory, filePath: output.metadata.filepath, content })
           await checkDbAfterWrite({ directory: ctx.directory, filePath: output.metadata.filepath, content })
 
           const message = apiCheckResult?.message;
@@ -161,6 +166,7 @@ export const CustomToolsPlugin: Plugin = async (ctx) => {
           await checkFnAfterEdit({ directory: ctx.directory, filePath: output.metadata.filediff.file, content: output.metadata.filediff.after })
           const apiCheckResult = await checkApiAfterEdit({ directory: ctx.directory, filePath: output.metadata.filediff.file, content: output.metadata.filediff.after })
           await checkCtrlAfterEdit({ directory: ctx.directory, filePath: output.metadata.filediff.file, content: output.metadata.filediff.after })
+          await checkComponentAfterEdit({ directory: ctx.directory, filePath: output.metadata.filediff.file, content: output.metadata.filediff.after })
           await checkDbAfterEdit({ directory: ctx.directory, filePath: output.metadata.filediff.file, content: output.metadata.filediff.after })
 
           const message = apiCheckResult?.message;
