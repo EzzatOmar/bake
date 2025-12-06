@@ -21,13 +21,15 @@ function isFrontendInitialized(projectRoot: string, srcDir: string, pagesDir: st
   // Check for essential frontend files and structure (minimum requirements)
   // Don't check for specific pages since they may not exist during init-frontend
   const globalCss = join(srcDir, 'global.css');
+  const cssModulesTypes = join(srcDir, 'css-modules.d.ts');
   const componentsDir = join(srcDir, 'components');
-  const headerComponent = join(componentsDir, 'Header.tsx');
-  const navigationComponent = join(componentsDir, 'Navigation.tsx');
+  const headerComponent = join(componentsDir, 'comp.header.tsx');
+  const navigationComponent = join(componentsDir, 'comp.navigation.tsx');
   
   return (
     existsSync(srcDir) &&
     existsSync(globalCss) &&
+    existsSync(cssModulesTypes) &&
     existsSync(componentsDir) &&
     existsSync(headerComponent) &&
     existsSync(navigationComponent) &&

@@ -33,6 +33,7 @@ function isFrontendAlreadyInitialized(srcDir: string, componentsDir: string, pag
   // Check if all essential frontend files exist
   // Check for pages to ensure full initialization
   const globalCss = join(srcDir, 'global.css');
+  const cssModulesTypes = join(srcDir, 'css-modules.d.ts');
   const headerComponent = join(componentsDir, 'comp.header.tsx');
   const navigationComponent = join(componentsDir, 'comp.navigation.tsx');
   const indexHtml = join(pagesDir, 'index.html');
@@ -44,6 +45,7 @@ function isFrontendAlreadyInitialized(srcDir: string, componentsDir: string, pag
   return (
     existsSync(srcDir) &&
     existsSync(globalCss) &&
+    existsSync(cssModulesTypes) &&
     existsSync(componentsDir) &&
     existsSync(headerComponent) &&
     existsSync(navigationComponent) &&
@@ -73,6 +75,7 @@ async function initFrontend(options: InitFrontendOptions = DEFAULT_OPTIONS) {
       console.log('   ✅ React dependencies installed');
       console.log('   ✅ Frontend directories exist');
       console.log('   ✅ Global CSS exists');
+      console.log('   ✅ CSS modules types exist');
       console.log('   ✅ Shared components exist');
       console.log('   ✅ Homepage and demo page exist');
       console.log('\n💡 To add new pages, use: bun run add-page <page-name>');
@@ -97,7 +100,12 @@ async function initFrontend(options: InitFrontendOptions = DEFAULT_OPTIONS) {
     // 3. Check and rename src/index.ts if it exists
     await handleIndexFile(projectRoot, srcDir);
 
-    // 4. Create directories
+    // 4. Create CSS modules type declaration
+    console.log('📝 Creating CSS modules type declaration...');
+    createCssModulesTypes(srcDir);
+    console.log('✅ CSS modules types created\n');
+
+    // 5. Create directories
     console.log('📁 Creating frontend directories...');
     createDirectories(componentsDir, pagesDir);
     console.log('✅ Directories created\n');
@@ -136,6 +144,11 @@ async function initFrontend(options: InitFrontendOptions = DEFAULT_OPTIONS) {
     console.log('📋 Updating package.json scripts...');
     await updatePackageJson(projectRoot);
     console.log('✅ Package.json updated\n');
+
+    // 12. Update tsconfig.json for CSS modules
+    console.log('⚙️  Updating tsconfig.json for CSS modules...');
+    await updateTsConfigForCssModules(projectRoot);
+    console.log('✅ tsconfig.json updated\n');
 
     console.log('🎉 Frontend initialization complete!');
     console.log('\n📋 Next steps:');
@@ -565,6 +578,24 @@ body {
   writeFileSync(globalCssPath, globalCss);
 }
 
+function createCssModulesTypes(srcDir: string) {
+  const cssModulesTypesPath = join(srcDir, 'css-modules.d.ts');
+  
+  if (existsSync(cssModulesTypesPath)) {
+    console.log('ℹ️  css-modules.d.ts already exists, skipping');
+    return;
+  }
+
+  const cssModulesTypes = `// CSS Modules
+declare module '*.module.css' {
+  const classes: { [key: string]: string };
+  export default classes;
+}
+`;
+
+  writeFileSync(cssModulesTypesPath, cssModulesTypes);
+}
+
 function createSharedComponents(componentsDir: string, force: boolean = false) {
   // Check if components already exist
   const headerFile = join(componentsDir, 'comp.header.tsx');
@@ -732,6 +763,39 @@ async function updatePackageJsonForIndexRename(projectRoot: string) {
 
   writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
   console.log('✅ Updated package.json to use index.tsx');
+}
+
+async function updateTsConfigForCssModules(projectRoot: string) {
+  const tsConfigPath = join(projectRoot, 'tsconfig.json');
+  
+  if (!existsSync(tsConfigPath)) {
+    console.log('⚠️  tsconfig.json not found, skipping update');
+    return;
+  }
+
+  const tsConfigContent = readFileSync(tsConfigPath, 'utf-8');
+  
+  // Check if css-modules.d.ts is already included in types
+  if (tsConfigContent.includes('css-modules.d.ts')) {
+    console.log('ℹ️  CSS modules types already included in tsconfig.json');
+    return;
+  }
+
+  // Use regex to add css-modules.d.ts to the types array
+  const updatedTsConfigContent = tsConfigContent.replace(
+    /("types":\s*\[)([^\]]*)(\])/s,
+    (match, opening, typesArray, closing) => {
+      // Add css-modules.d.ts to types array
+      const types = typesArray.split(',').map((t: string) => t.trim().replace(/"/g, '')).filter((t: string) => t.length > 0);
+      if (!types.includes('./src/css-modules.d.ts')) {
+        types.push('./src/css-modules.d.ts');
+      }
+      return opening + types.map((t: string) => `"${t}"`).join(', ') + closing;
+    }
+  );
+
+  writeFileSync(tsConfigPath, updatedTsConfigContent);
+  console.log('✅ Updated tsconfig.json to include CSS modules types');
 }
 
 async function updatePackageJson(_projectRoot: string) {
