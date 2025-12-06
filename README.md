@@ -8,7 +8,7 @@ BAKE generates production-ready fullstack TypeScript applications following the 
 
 ```bash
 bun run install
-bun run dev
+bun run dev:human
 ```
 
 ## Architecture in 5 Layers

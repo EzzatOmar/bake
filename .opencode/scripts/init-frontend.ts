@@ -162,7 +162,7 @@ async function installDependencies() {
   }
 }
 
-async function handleIndexFile(_projectRoot: string, srcDir: string) {
+async function handleIndexFile(projectRoot: string, srcDir: string) {
   const indexTs = join(srcDir, 'index.ts');
   const indexTsx = join(srcDir, 'index.tsx');
 
@@ -170,6 +170,9 @@ async function handleIndexFile(_projectRoot: string, srcDir: string) {
     console.log('🔄 Renaming index.ts to index.tsx...');
     renameSync(indexTs, indexTsx);
     console.log('✅ Renamed index.ts to index.tsx\n');
+    
+    // Update package.json to reflect the change from index.ts to index.tsx
+    await updatePackageJsonForIndexRename(projectRoot);
   } else if (existsSync(indexTsx)) {
     console.log('ℹ️  index.tsx already exists, skipping rename\n');
   }
@@ -699,6 +702,36 @@ async function createPageWithScript(pageName: string, force: boolean = false) {
     console.log(`⚠️  ${pageName} page creation failed, but continuing...`);
     // Don't fail the entire init if page creation fails
   }
+}
+
+async function updatePackageJsonForIndexRename(projectRoot: string) {
+  const packageJsonPath = join(projectRoot, 'package.json');
+  
+  if (!existsSync(packageJsonPath)) {
+    console.log('⚠️  package.json not found, skipping update');
+    return;
+  }
+
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+  
+  // Update main entry point from index.ts to index.tsx
+  if (packageJson.module === 'src/index.ts') {
+    packageJson.module = 'src/index.tsx';
+  }
+  
+  // Update scripts that reference index.ts to use index.tsx instead
+  if (packageJson.scripts) {
+    // Use regex to replace all src/index.ts with src/index.tsx in scripts
+    Object.keys(packageJson.scripts).forEach(scriptName => {
+      const scriptValue = packageJson.scripts[scriptName];
+      if (typeof scriptValue === 'string') {
+        packageJson.scripts[scriptName] = scriptValue.replace(/src\/index\.ts/g, 'src/index.tsx');
+      }
+    });
+  }
+
+  writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+  console.log('✅ Updated package.json to use index.tsx');
 }
 
 async function updatePackageJson(_projectRoot: string) {
