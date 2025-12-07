@@ -131,3 +131,10 @@ export async function checkAfterEdit(input: {
     
     return result;
   }
+
+export default {
+    checkBeforeWrite,
+    checkBeforeEdit,
+    checkAfterWrite,
+    checkAfterEdit
+}
