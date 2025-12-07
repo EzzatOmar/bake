@@ -11,7 +11,6 @@ import { Elysia } from 'elysia';
  */
 export default new Elysia({ 
   name: 'api-router',
-  prefix: '/api/'
 })
   // .use(apiHealth) // example add sub router
-  .all("*", Response.json({ message: "Not Found" }, { status: 404 }))
+  .all("/*", Response.json({ message: "Not Found" }, { status: 404 }))
