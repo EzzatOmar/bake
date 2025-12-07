@@ -10,4 +10,4 @@ export type TRuleFn = (args: {
     directory: string,
     filePath: string,
     content: string
-}) => Promise<TRuleResult | undefined>
+}) => Promise<TRuleResult | void>
