@@ -2,6 +2,9 @@
 
 This document contains test cases to verify that each rule in the plugin is working correctly.
 
+Run opencode with `opencode --model zai-coding-plan/glm-4.6 run --model [message]`
+e.g. `opencode run --model zai-coding-plan/glm-4.6 'write hello to ./hello.txt'`
+
 ## How to use this list:
 
 1. For each item below, create a file that violates the rule
