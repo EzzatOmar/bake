@@ -4,6 +4,7 @@ import * as api from "./api";
 import * as controller from "./controller";
 import * as database from "./database";
 import * as fn from "./function";
+import * as component from "./component";
 
 export type { TRuleResult } from "./rule-types";
 
@@ -24,8 +25,9 @@ export async function checkBeforeWrite(input: {
     const controllerResults = await controller.checkBeforeWrite(input, output);
     const databaseResults = await database.checkBeforeWrite(input, output);
     const functionResults = await fn.checkBeforeWrite(input, output);
+    const componentResults = await component.checkBeforeWrite(input, output);
     
-    result.push(...generalResults, ...apiResults, ...controllerResults, ...databaseResults, ...functionResults);
+    result.push(...generalResults, ...apiResults, ...controllerResults, ...databaseResults, ...functionResults, ...componentResults);
     
     return result;
   }
@@ -47,8 +49,9 @@ export async function checkBeforeEdit(input: {
     const controllerResults = await controller.checkBeforeEdit(input, output);
     const databaseResults = await database.checkBeforeEdit(input, output);
     const functionResults = await fn.checkBeforeEdit(input, output);
+    const componentResults = await component.checkBeforeEdit(input, output);
     
-    result.push(...generalResults, ...apiResults, ...controllerResults, ...databaseResults, ...functionResults);
+    result.push(...generalResults, ...apiResults, ...controllerResults, ...databaseResults, ...functionResults, ...componentResults);
     
     return result;
   }
@@ -70,8 +73,9 @@ export async function checkAfterWrite(input: {
     const controllerResults = await controller.checkAfterWrite(input, output);
     const databaseResults = await database.checkAfterWrite(input, output);
     const functionResults = await fn.checkAfterWrite(input, output);
+    const componentResults = await component.checkAfterWrite(input, output);
     
-    result.push(...generalResults, ...apiResults, ...controllerResults, ...databaseResults, ...functionResults);
+    result.push(...generalResults, ...apiResults, ...controllerResults, ...databaseResults, ...functionResults, ...componentResults);
     
     return result;
   }
@@ -93,8 +97,9 @@ export async function checkAfterEdit(input: {
     const controllerResults = await controller.checkAfterEdit(input, output);
     const databaseResults = await database.checkAfterEdit(input, output);
     const functionResults = await fn.checkAfterEdit(input, output);
+    const componentResults = await component.checkAfterEdit(input, output);
     
-    result.push(...generalResults, ...apiResults, ...controllerResults, ...databaseResults, ...functionResults);
+    result.push(...generalResults, ...apiResults, ...controllerResults, ...databaseResults, ...functionResults, ...componentResults);
     
     return result;
   }
