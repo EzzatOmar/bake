@@ -2,10 +2,8 @@ import { PluginInput, type Plugin } from "@opencode-ai/plugin";
 import { fileLog } from "../helper-fns/file-logger";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import generalRules from "../rule-fns/general";
-import functionRules from "../rule-fns/function";
-import controllerRules from "../rule-fns/controller";
-import apiRules from "../rule-fns/api";
+import * as ruleFns from "../rule-fns";
+
 import type { TRuleResult } from "../rule-fns/rule-types";
 
 
@@ -43,91 +41,6 @@ function initializeFolderStructure(directory: string) {
   }
 }
 
-async function checkBeforeWrite(input: {
-  tool: string;
-  sessionID: string;
-  callID: string;
-}, output: {
-  directory: string;
-  content: string;
-  filePath: string;
-}) {
-  const result: TRuleResult[] = [];
-  const r1 = await generalRules.checkBeforeWrite(input, output);
-  if (r1) result.push(...r1);
-  const r2 = await functionRules.checkBeforeWrite(input, output);
-  if (r2) result.push(...r2);
-  const r3 = await controllerRules.checkBeforeWrite(input, output);
-  if (r3) result.push(...r3);
-  const r4 = await apiRules.checkBeforeWrite(input, output);
-  if (r4) result.push(...r4);
-  return result;
-}
-
-async function checkBeforeEdit(input: {
-  tool: string;
-  sessionID: string;
-  callID: string;
-}, output: {
-  directory: string;
-  content: string;
-  filePath: string;
-}) {
-
-  const result: TRuleResult[] = [];
-  const r1 = await generalRules.checkBeforeEdit(input, output);
-  if (r1) result.push(...r1);
-  const r2 = await functionRules.checkBeforeEdit(input, output);
-  if (r2) result.push(...r2);
-  const r3 = await controllerRules.checkBeforeEdit(input, output);
-  if (r3) result.push(...r3);
-  const r4 = await apiRules.checkBeforeEdit(input, output);
-  if (r4) result.push(...r4);
-  return result;
-
-}
-
-async function checkAfterWrite(input: {
-  tool: string;
-  sessionID: string;
-  callID: string;
-}, output: {
-  directory: string;
-  content: string;
-  filePath: string;
-}) {
-  const result: TRuleResult[] = [];
-  const r1 = await generalRules.checkAfterWrite(input, output);
-  if (r1) result.push(...r1);
-  const r2 = await functionRules.checkAfterWrite(input, output);
-  if (r2) result.push(...r2);
-  const r3 = await controllerRules.checkAfterWrite(input, output);
-  if (r3) result.push(...r3);
-  const r4 = await apiRules.checkAfterWrite(input, output);
-  if (r4) result.push(...r4);
-  return result;
-}
-
-async function checkAfterEdit(input: {
-  tool: string;
-  sessionID: string;
-  callID: string;
-}, output: {
-  directory: string;
-  content: string;
-  filePath: string;
-}) {
-  const result: TRuleResult[] = [];
-  const r1 = await generalRules.checkAfterEdit(input, output);
-  if (r1) result.push(...r1);
-  const r2 = await functionRules.checkAfterEdit(input, output);
-  if (r2) result.push(...r2);
-  const r3 = await controllerRules.checkAfterEdit(input, output);
-  if (r3) result.push(...r3);
-  const r4 = await apiRules.checkAfterEdit(input, output);
-  if (r4) result.push(...r4);
-  return result;
-}
 
 async function sendResultToAi(ctx: PluginInput, input: {sessionID: string}, result: TRuleResult[]) {
   const messages = result.map(r => r.message).filter(Boolean).join("\n\n");
@@ -163,9 +76,9 @@ export const BakePlugin: Plugin = async (ctx) => {
       fileLog("tool.execute.before", JSON.stringify(input), JSON.stringify(output))
       const result: TRuleResult[] = [];
       if (input.tool === "write") {
-        result.push(...await checkBeforeWrite(input, output as any));
+        result.push(...await ruleFns.checkBeforeWrite(input, output as any));
       } else if (input.tool === "edit") {
-        result.push(...await checkBeforeEdit(input, output as any));
+        result.push(...await ruleFns.checkBeforeEdit(input, output as any));
       }
       await sendResultToAi(ctx, input, result);
 
@@ -179,11 +92,11 @@ export const BakePlugin: Plugin = async (ctx) => {
           const content = await Bun.file(output.metadata.filepath).text();
           const fixedOutput = { directory: ctx.directory, filePath: output.metadata.filediff.file, content }
           
-          result.push(...await checkAfterWrite(input, fixedOutput));
+          result.push(...await ruleFns.checkAfterWrite(input, fixedOutput));
         } else if (input.tool === "edit") {
           const fixedOutput = { directory: ctx.directory, filePath: output.metadata.filediff.file, content: output.metadata.filediff.after }
 
-          result.push(...await checkAfterEdit(input, fixedOutput));
+          result.push(...await ruleFns.checkAfterEdit(input, fixedOutput));
         }
         await sendResultToAi(ctx, input, result);
       } catch (e) {

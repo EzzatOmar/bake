@@ -2,7 +2,7 @@ import { parseTypeScript, findTypeAlias, getTypeLiteralPropertyNames } from "../
 import { getDatabaseVariableNames } from "../../helper-fns/get-db-names";
 import type { TRuleFn } from "../rule-types";
 
-export const ruleDbPortalType: TRuleFn = async ({directory, content, filePath}) => {
+export const ruleFnDbPortalType: TRuleFn = async ({directory, content, filePath}) => {
     const sourceFile = parseTypeScript(content);
     
     // Find TPortal type definition
