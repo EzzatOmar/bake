@@ -29,7 +29,7 @@ export function addPageToRouter(indexPath: string, pageName: string): boolean {
   const routePath = pageName === 'index' ? '/' : `/${pageName}`;
 
   // Generate new import statement
-  const newImport = `import ${importName} from './pages/${pageName}.html';`;
+  const newImport = `import ${importName} from './page/${pageName}.html';`;
   
   // Generate new route entry
   const newRoute = `      "${routePath}": ${importName},`;
@@ -97,7 +97,7 @@ function insertImport(content: string, newImport: string): string {
 
   // Find the last import statement
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim().startsWith('import ') && lines[i].includes("from './pages/")) {
+    if (lines[i].trim().startsWith('import ') && lines[i].includes("from './page/")) {
       lastImportIndex = i;
     }
   }

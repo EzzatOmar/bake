@@ -8,7 +8,13 @@ import { staticPlugin } from '@elysiajs/static'
  * 
  * Put Frontend are automatically served from ./src/page
  */
-const app = new Elysia()
+const app = new Elysia({
+  serve: {
+    development: {
+      hmr: false, // disables until: https://github.com/oven-sh/bun/issues/18258
+    }
+  }
+})
   .use(swagger({
     path: '/docs',
     documentation: {
