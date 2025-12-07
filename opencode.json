@@ -4,7 +4,7 @@
     "tools": {
       "write": true,
       "bash": true,
-      "webfetch": true,
+      "webfetch": true
     },
     "permission": {
       "database_*": "deny",
