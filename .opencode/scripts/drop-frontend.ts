@@ -84,8 +84,8 @@ async function dropFrontend(options: DropFrontendOptions = DEFAULT_OPTIONS) {
     removeFileOrDir(join(srcDir, 'dev.tsx'), options);
     log('');
 
-    // 3. Note: index.tsx file is left as-is since frontend initialization no longer modifies it
-    log('ℹ️  Leaving src/index.tsx unchanged (frontend init no longer renames index.ts)');
+    // 3. Handle index.tsx -> index.ts reversal
+    await handleIndexFileReversal(projectRoot, srcDir, options);
     log('');
 
     // 4. Create basic backend index.ts if it doesn't exist
@@ -122,7 +122,7 @@ async function dropFrontend(options: DropFrontendOptions = DEFAULT_OPTIONS) {
       console.log('   - Package.json cleaned up');
       console.log('   - TypeScript configuration reverted');
       console.log('\n⚠️  IMPORTANT: Manual cleanup required:');
-      console.log('   - Check src/index.tsx and remove any page routes from the router');
+      console.log('   - Check src/index.ts and remove any page routes from the router');
       console.log('   - Remove any remaining frontend-related imports or references');
       console.log('   - Ensure the server only contains API routes and backend logic');
     }
@@ -134,6 +134,29 @@ async function dropFrontend(options: DropFrontendOptions = DEFAULT_OPTIONS) {
 }
 
 
+
+async function handleIndexFileReversal(projectRoot: string, srcDir: string, options: DropFrontendOptions) {
+  const indexTsx = join(srcDir, 'index.tsx');
+  const indexTs = join(srcDir, 'index.ts');
+
+  if (existsSync(indexTsx) && !existsSync(indexTs)) {
+    if (options.dryRun) {
+      log(`Would rename: ${indexTsx} -> ${indexTs}`, true);
+      return;
+    }
+
+    log('🔄 Renaming index.tsx to index.ts...');
+    renameSync(indexTsx, indexTs);
+    log('✅ Renamed index.tsx to index.ts');
+    
+    // Update package.json to reflect the change back to index.ts
+    await updatePackageJsonForIndexRevert(projectRoot);
+  } else if (existsSync(indexTs)) {
+    log('ℹ️  index.ts already exists, skipping rename');
+  } else if (existsSync(indexTsx)) {
+    log('ℹ️  index.tsx exists but index.ts also exists, keeping both');
+  }
+}
 
 async function createBasicBackendIndex(srcDir: string, options: DropFrontendOptions) {
   const indexTs = join(srcDir, 'index.ts');
@@ -177,6 +200,35 @@ async function createBasicBackendIndex(srcDir: string, options: DropFrontendOpti
 
   writeFileSync(indexTs, backendIndexContent);
   log('✅ Created basic backend index.ts');
+}
+
+async function updatePackageJsonForIndexRevert(projectRoot: string) {
+  const packageJsonPath = join(projectRoot, 'package.json');
+  
+  if (!existsSync(packageJsonPath)) {
+    log('⚠️  package.json not found, skipping update');
+    return;
+  }
+
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+  
+  // Update main entry point from index.tsx back to index.ts
+  if (packageJson.module === 'src/index.tsx') {
+    packageJson.module = 'src/index.ts';
+  }
+  
+  // Update scripts that reference index.tsx to use index.ts instead
+  if (packageJson.scripts) {
+    Object.keys(packageJson.scripts).forEach(scriptName => {
+      const scriptValue = packageJson.scripts[scriptName];
+      if (typeof scriptValue === 'string') {
+        packageJson.scripts[scriptName] = scriptValue.replace(/src\/index\.tsx/g, 'src/index.ts');
+      }
+    });
+  }
+
+  writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+  log('✅ Updated package.json to use index.ts');
 }
 
 async function removeFrontendDependencies(projectRoot: string, options: DropFrontendOptions) {
@@ -237,7 +289,13 @@ async function revertPackageJsonScripts(projectRoot: string, options: DropFronte
     packageJson.scripts = {};
   }
 
-  // No index.tsx replacement needed - frontend init no longer modifies index files
+  // Use regex to replace all src/index.tsx with src/index.ts in scripts
+  Object.keys(packageJson.scripts).forEach(scriptName => {
+    const scriptValue = packageJson.scripts[scriptName];
+    if (typeof scriptValue === 'string') {
+      packageJson.scripts[scriptName] = scriptValue.replace(/src\/index\.tsx/g, 'src/index.ts');
+    }
+  });
 
   // Remove frontend-specific scripts if they exist
   delete packageJson.scripts['init-frontend'];
@@ -314,7 +372,7 @@ Behavior:
     - Removes src/global.css
     - Removes src/css-modules.d.ts
     - Removes src/dev.tsx
-    - Leaves src/index.tsx unchanged (frontend init no longer renames index.ts)
+    - Renames src/index.tsx back to src/index.ts
     - Removes all frontend dependencies: react, react-dom, @types/react, @types/react-dom, @base-ui-components/react, @react-grab/opencode, react-grab (unless --keep-deps)
     - Reverts package.json scripts to backend-only
     - Removes CSS modules from tsconfig.json
