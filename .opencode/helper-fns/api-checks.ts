@@ -11,14 +11,19 @@ import ts from 'typescript';
 import type { TCheckResult } from "../plugin/vb";
 
 
-
+// ===== ELYSIA PATTERN ASSERTIONS =====
 
 /**
  * Rule: API file name must start with api.
  */
 export function assertApiFileName(args: { directory: string, filePath: string }) {
     const fileName = path.basename(args.filePath, ".ts");
-    
+
+    // Allow .model.ts files for validation schemas
+    if (fileName.endsWith(".model")) {
+        return;
+    }
+
     if (!fileName.startsWith("api.")) {
         fileLog("assertApiFileName", "invalid API file name", fileName);
         throw new Error(
@@ -26,6 +31,163 @@ export function assertApiFileName(args: { directory: string, filePath: string })
             `Found: ${fileName}.ts. ` +
             "You might want to read .opencode/agent/api-builder.md"
         );
+    }
+}
+
+/**
+ * Rule: API must import Elysia from 'elysia'
+ */
+export function assertApiImportsElysia(args: { sourceFile: SourceFile, directory: string, content: string, filePath: string }) {
+    const relativePath = path.relative(args.directory, args.filePath);
+
+    // Check for Elysia import
+    let hasElysiaImport = false;
+
+    function visit(node: ts.Node) {
+        if (ts.isImportDeclaration(node)) {
+            const moduleSpecifier = node.moduleSpecifier;
+            if (ts.isStringLiteral(moduleSpecifier) && moduleSpecifier.text === 'elysia') {
+                // Check if Elysia is imported
+                const importClause = node.importClause;
+                if (importClause && importClause.namedBindings && ts.isNamedImports(importClause.namedBindings)) {
+                    for (const element of importClause.namedBindings.elements) {
+                        if (element.name.text === 'Elysia') {
+                            hasElysiaImport = true;
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+        ts.forEachChild(node, visit);
+    }
+
+    visit(args.sourceFile);
+
+    if (!hasElysiaImport) {
+        fileLog("assertApiImportsElysia", "no Elysia import found");
+        throw new Error(
+            "API files must import Elysia from 'elysia'. " +
+            `File ${relativePath} does not import Elysia. ` +
+            "Add: import { Elysia } from 'elysia'; " +
+            "You might want to read .opencode/agent/api-builder.md"
+        );
+    }
+}
+
+/**
+ * Rule: API must export default a new Elysia() instance
+ */
+export function assertApiDefaultExportIsElysia(args: { sourceFile: SourceFile, directory: string, content: string, filePath: string }) {
+    const relativePath = path.relative(args.directory, args.filePath);
+
+    // Find export default statement
+    let foundElysiaExport = false;
+
+    function visit(node: ts.Node) {
+        // Check for: export default new Elysia(...)
+        if (ts.isExportAssignment(node) && !node.isExportEquals) {
+            const expr = node.expression;
+            if (ts.isNewExpression(expr)) {
+                const exprText = expr.expression;
+                if (ts.isIdentifier(exprText) && exprText.text === 'Elysia') {
+                    foundElysiaExport = true;
+                    return;
+                }
+            }
+            // Check for chained: export default new Elysia(...).get(...).post(...)
+            if (ts.isCallExpression(expr)) {
+                let current: ts.Expression = expr;
+                while (ts.isCallExpression(current)) {
+                    if (ts.isPropertyAccessExpression(current.expression)) {
+                        current = current.expression.expression;
+                    } else {
+                        break;
+                    }
+                }
+                if (ts.isNewExpression(current)) {
+                    const exprText = current.expression;
+                    if (ts.isIdentifier(exprText) && exprText.text === 'Elysia') {
+                        foundElysiaExport = true;
+                        return;
+                    }
+                }
+            }
+        }
+        ts.forEachChild(node, visit);
+    }
+
+    visit(args.sourceFile);
+
+    if (!foundElysiaExport) {
+        fileLog("assertApiDefaultExportIsElysia", "default export is not Elysia instance");
+        throw new Error(
+            "API files must default export a new Elysia() instance. " +
+            `File ${relativePath} does not export an Elysia instance. ` +
+            "Use: export default new Elysia({ prefix: '/api/...' }).get(...); " +
+            "You might want to read .opencode/agent/api-builder.md"
+        );
+    }
+}
+
+/**
+ * Rule: Elysia instance must have a prefix option
+ */
+export function assertApiElysiaHasPrefix(args: { sourceFile: SourceFile, directory: string, content: string, filePath: string }) {
+    const relativePath = path.relative(args.directory, args.filePath);
+
+    let foundPrefix = false;
+    let prefixValue: string | null = null;
+
+    function visit(node: ts.Node) {
+        if (ts.isNewExpression(node)) {
+            const exprText = node.expression;
+            if (ts.isIdentifier(exprText) && exprText.text === 'Elysia') {
+                // Check arguments for { prefix: '...' }
+                if (node.arguments && node.arguments.length > 0) {
+                    const firstArg = node.arguments[0];
+                    if (ts.isObjectLiteralExpression(firstArg)) {
+                        for (const prop of firstArg.properties) {
+                            if (ts.isPropertyAssignment(prop) &&
+                                ts.isIdentifier(prop.name) &&
+                                prop.name.text === 'prefix') {
+                                foundPrefix = true;
+                                if (ts.isStringLiteral(prop.initializer)) {
+                                    prefixValue = prop.initializer.text;
+                                }
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        ts.forEachChild(node, visit);
+    }
+
+    visit(args.sourceFile);
+
+    if (!foundPrefix) {
+        fileLog("assertApiElysiaHasPrefix", "Elysia instance missing prefix option");
+        throw new Error(
+            "API Elysia instance must have a 'prefix' option. " +
+            `File ${relativePath} is missing prefix. ` +
+            "Use: new Elysia({ prefix: '/api/module/endpoint' }) " +
+            "You might want to read .opencode/agent/api-builder.md"
+        );
+    }
+
+    // Validate prefix starts with /api/
+    if (prefixValue !== null) {
+        const prefix = prefixValue as string; // Type assertion
+        if (!prefix.startsWith('/api/')) {
+            fileLog("assertApiElysiaHasPrefix", "prefix must start with /api/", prefix);
+            throw new Error(
+                "API Elysia prefix must start with '/api/'. " +
+                `Found prefix: '${prefix}' in ${relativePath}. ` +
+                "You might want to read .opencode/agent/api-builder.md"
+            );
+        }
     }
 }
 
@@ -267,56 +429,78 @@ function isApiFolder(args: { directory: string, filePath: string }): boolean {
     return true;
 }
 
+/**
+ * Check if file is a model file (api.<name>.model.ts)
+ */
+function isApiModelFile(args: { filePath: string }): boolean {
+    const fileName = path.basename(args.filePath, ".ts");
+    return fileName.endsWith(".model");
+}
+
+/**
+ * Check if file is the router file
+ */
+function isRouterFile(args: { directory: string, filePath: string }): boolean {
+    const relativePath = path.relative(args.directory, args.filePath);
+    return relativePath === "src/api/router.ts";
+}
+
 
 // ===== COMBINED CHECK FUNCTIONS =====
 
 export async function checkApiBeforeWrite(args: { directory: string, content: string, filePath: string }) {
     if (!isApiFolder(args)) return;
     if (isTestFile(args)) return;
-    
+    if (isRouterFile(args)) return; // Router file has different rules
+
     assertApiFileName(args);
 }
 
 export async function checkApiBeforeEdit(args: { directory: string, content: string, filePath: string }) {
     if (!isApiFolder(args)) return;
     if (isTestFile(args)) return;
-    
+    if (isRouterFile(args)) return;
+
     assertApiFileName(args);
 }
 
 export async function checkApiAfterWrite(args: { directory: string, content: string, filePath: string }): Promise<TCheckResult> {
     if (!isApiFolder(args)) return;
     if (isTestFile(args)) return;
+    if (isRouterFile(args)) return;
+    if (isApiModelFile(args)) return; // Model files only need filename check
 
     const sourceFile = parseTypeScript(args.content);
-    
+
     assertApiFileName(args);
-    assertApiDefaultExport({ sourceFile, ...args });
-    assertApiDefaultExportIsVariable({ sourceFile, ...args });
-    assertApiVariableName({ sourceFile, ...args });
-    assertApiVariableType({ sourceFile, ...args });
+    // Elysia pattern assertions
+    assertApiImportsElysia({ sourceFile, ...args });
+    assertApiDefaultExportIsElysia({ sourceFile, ...args });
+    assertApiElysiaHasPrefix({ sourceFile, ...args });
     assertApiImportsController({ sourceFile, ...args });
 
     return {
-        message: "<hint>Api handler needs to be addes to router in src/index.ts</hint>"
+        message: "<hint>Add this API route to src/api/router.ts using .use()</hint>"
     }
 }
 
 export async function checkApiAfterEdit(args: { directory: string, content: string, filePath: string }): Promise<TCheckResult> {
     if (!isApiFolder(args)) return;
     if (isTestFile(args)) return;
+    if (isRouterFile(args)) return;
+    if (isApiModelFile(args)) return;
 
     const sourceFile = parseTypeScript(args.content);
-    
+
     assertApiFileName(args);
-    assertApiDefaultExport({ sourceFile, ...args });
-    assertApiDefaultExportIsVariable({ sourceFile, ...args });
-    assertApiVariableName({ sourceFile, ...args });
-    assertApiVariableType({ sourceFile, ...args });
+    // Elysia pattern assertions
+    assertApiImportsElysia({ sourceFile, ...args });
+    assertApiDefaultExportIsElysia({ sourceFile, ...args });
+    assertApiElysiaHasPrefix({ sourceFile, ...args });
     assertApiImportsController({ sourceFile, ...args });
 
     return {
-        message: "<hint>Api handler needs to be addes to router in src/index.ts</hint>"
+        message: "<hint>Add this API route to src/api/router.ts using .use()</hint>"
     }
 }
 

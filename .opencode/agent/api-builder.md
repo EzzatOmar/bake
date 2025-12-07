@@ -5,158 +5,225 @@ mode: subagent
 
 API handlers are located in `src/api/<MODULE>`.
 
-## Required Structure
+## Required Structure (Elysia Pattern)
+
+Each API file exports an Elysia instance with a prefix matching the route path.
 
 ```ts
-import type { BunRequest, Serve, Server } from 'bun';
+import { Elysia, t } from 'elysia';
+import ctrlUserList from '@/src/controller/user/ctrl.user-list';
+import { toErrorResponse } from '@/src/error/err.response';
 
-const api<Name>: Partial<Record<Serve.HTTPMethod, Serve.Handler<BunRequest<'/api/...'>, Server<undefined>, Response>>> = {
-  GET: async (req, server) => { /* handler logic */ },
-  POST: async (req, server) => { /* handler logic */ },
-};
+export default new Elysia({ prefix: '/api/users' })
+  .get('/', async ({ query, set }) => {
+    const portal = { db: drizzleDb, session: null };
+    const [result, error] = await ctrlUserList(portal, { page: query.page });
 
-export default api<Name>;
+    if (error) {
+      set.status = error.statusCode;
+      return toErrorResponse({ error });
+    }
+    return result;
+  }, {
+    query: t.Object({
+      page: t.Optional(t.Numeric()),
+    }),
+  });
 ```
-
-Match the endpoint path with file name.
-/api/boards/:id -> api.boards.:id
-/api/users -> api.users
 
 ## Critical Requirements
 
-- ✅ **Import types**: `import type { BunRequest, Serve, Server } from 'bun'`
-- ✅ **Variable name**: Must start with `api` prefix
-- ✅ **Type annotation**: Exact type `Partial<Record<Serve.HTTPMethod, Serve.Handler<BunRequest<'/api/...'>, Server<undefined>, Response>>>`
-- ✅ **Default export**: Must use `export default` (not named exports)
-- ✅ **File location**: `src/api/<module>/api.<name>.ts`
+- **Import Elysia**: `import { Elysia, t } from 'elysia'`
+- **File name**: Must start with `api.` prefix (e.g., `api.users.ts`)
+- **Default export**: Must be `new Elysia({ prefix: '/api/...' })`
+- **Prefix option**: REQUIRED - must start with `/api/`
+- **Controller import**: Must import at least one `ctrl.*` file
+- **File location**: `src/api/<module>/api.<name>.ts`
+
+## File Naming Convention
+
+Match the endpoint path with file name:
+- `/api/users` → `api.users.ts`
+- `/api/users/:id` → `api.users.:id.ts`
+- `/api/boards/:boardId/cards` → `api.boards.:boardId.cards.ts`
+
+## Validation with TypeBox
+
+Use Elysia's built-in `t` (TypeBox) for validation. This provides:
+- Runtime validation
+- TypeScript type inference
+- OpenAPI schema generation
+
+```ts
+import { Elysia, t } from 'elysia';
+
+export default new Elysia({ prefix: '/api/users/:id' })
+  .get('/', async ({ params, query }) => {
+    // params.id is typed as string
+    // query.include is typed as string[] | undefined
+  }, {
+    params: t.Object({
+      id: t.String({ format: 'uuid' }),
+    }),
+    query: t.Object({
+      include: t.Optional(t.Array(t.String())),
+    }),
+  })
+  .put('/', async ({ params, body }) => {
+    // body is typed with full inference
+  }, {
+    params: t.Object({
+      id: t.String({ format: 'uuid' }),
+    }),
+    body: t.Object({
+      name: t.String({ minLength: 1, maxLength: 100 }),
+      email: t.String({ format: 'email' }),
+    }),
+  });
+```
+
+## Common TypeBox Validators
+
+```ts
+import { t } from 'elysia';
+
+// Primitives
+t.String()
+t.Number()
+t.Boolean()
+t.Numeric()           // String that coerces to number
+
+// With constraints
+t.String({ minLength: 1, maxLength: 100 })
+t.Number({ minimum: 0, maximum: 100 })
+t.String({ format: 'email' })
+t.String({ format: 'uuid' })
+
+// Optional & nullable
+t.Optional(t.String())
+t.Nullable(t.String())
+
+// Arrays & objects
+t.Array(t.String())
+t.Object({ name: t.String() })
+
+// Union & literal
+t.Union([t.Literal('admin'), t.Literal('user')])
+```
+
+## Separate Model Files (Optional)
+
+For complex validation schemas, create a separate model file:
+
+```ts
+// src/api/user/api.users.model.ts
+import { t } from 'elysia';
+
+export const userCreateBody = t.Object({
+  email: t.String({ format: 'email' }),
+  name: t.String({ minLength: 2, maxLength: 100 }),
+  role: t.Optional(t.Union([
+    t.Literal('admin'),
+    t.Literal('user'),
+  ])),
+});
+
+// Extract type for use in controllers
+export type TUserCreateBody = typeof userCreateBody.static;
+```
+
+Then import in your API file:
+```ts
+import { userCreateBody } from './api.users.model';
+
+export default new Elysia({ prefix: '/api/users' })
+  .post('/', handler, { body: userCreateBody });
+```
 
 ## API Layer Responsibilities
 
-The API layer's job is to handle HTTP concerns and prepare data for the controller. **No business logic in API layer.**
+The API layer handles HTTP concerns and prepares data for controllers. **No business logic in API layer.**
 
 **API Layer:**
-- Parse path/query parameters 
+- Parse and validate path/query/body parameters (via Elysia schemas)
 - Authenticate & authorize requests
 - Open database connections
-- Call external services
-- Prepare all parameters for controller
+- Prepare portal object with dependencies
 - Call controller with prepared data
-- Return HTTP response (error or success)
+- Return HTTP response
 
 **Controller Layer:**
 - Contains all business logic
-- Processes the prepared parameters
-- Returns result or error
+- Framework-agnostic (no knowledge of Elysia)
+- Processes prepared parameters
+- Returns result or error tuple
 
 ## Handler Pattern
 
-Each handler follows this pattern:
-1. Parse & validate path/query parameters
-2. Authenticate user (session, token, etc.)
-3. Authorize request (permissions, roles)
-4. Open DB connections & external services
-5. Prepare clean parameters for controller
-6. Call controller with prepared data
-7. Handle errors with `toErrorResponse`
-8. Return HTTP response
-
-## Example
-
 ```ts
-import ctrlUserList from '../../controller/user/ctrl.user-list';
-import { toErrorResponse } from '../../error/err.response';
-import type { BunRequest, Serve, Server } from 'bun';
+import { Elysia, t } from 'elysia';
+import ctrlCreateUser from '@/src/controller/user/ctrl.create-user';
+import { drizzleDb } from '@/src/database/user/conn.user';
+import { toErrorResponse } from '@/src/error/err.response';
 
-const apiUsers: Partial<Record<Serve.HTTPMethod, Serve.Handler<BunRequest<'/api/users'>, Server<undefined>, Response>>> = {
-  GET: async (req, _server) => {
-    try {
-      const [result, error] = await ctrlUserList({}, req);
-      if (error) {
-        return toErrorResponse({ req, error });
-      }
-      return Response.json(result, { status: 200 });
-    } catch (unexpectedError) {
-      return Response.json({
-        type: 'INTERNAL_SERVER_ERROR',
-        message: 'An unexpected error occurred'
-      }, { status: 500 });
+export default new Elysia({ prefix: '/api/users' })
+  .post('/', async ({ body, set }) => {
+    // 1. Prepare portal (framework concerns)
+    const portal = {
+      db: drizzleDb,
+      session: null, // TODO: resolve from auth
+    };
+
+    // 2. Call framework-agnostic controller
+    const [result, error] = await ctrlCreateUser(portal, body);
+
+    // 3. Handle error
+    if (error) {
+      set.status = error.statusCode;
+      return toErrorResponse({ error });
     }
-  }
-};
 
-export default apiUsers;
+    // 4. Return success
+    set.status = 201;
+    return result;
+  }, {
+    body: t.Object({
+      email: t.String({ format: 'email' }),
+      name: t.String({ minLength: 1 }),
+    }),
+    detail: {
+      tags: ['Users'],
+      summary: 'Create a new user',
+    },
+  });
 ```
 
-## Path & Query Parameters
+## Router Composition
 
-Bun.js automatically provides path params via `req.params`. Query params need manual extraction from URL.
+After creating an API file, add it to `src/api/router.ts`:
 
 ```ts
-import { z } from 'zod';
+import { Elysia } from 'elysia';
 
-// Path params schema (e.g., /api/users/:id)
-const pathSchema = z.object({
-  id: z.string().uuid(),
-  orgId: z.string().min(3)
-});
+import apiUsers from './user/api.users';
+import apiUsersId from './user/api.users.:id';
 
-// Query params schema (e.g., /api/users/:id?active=true&page=1)
-const querySchema = z.object({
-  active: z.string().transform(Boolean).optional(),
-  page: z.string().transform(Number).optional(),
-  search: z.string().optional()
-});
-
-// In handler
-GET: async (req: BunRequest<'/api/users/:id/orgs/:orgId'>, _server) => {
-  const url = new URL(req.url);
-  
-  // Path params - automatically provided by Bun.js
-  const pathParams = req.params; // { id: "123", orgId: "myorg" }
-  
-  // Query params - extract from URL search params
-  const queryParams = Object.fromEntries(url.searchParams);
-  
-  // Validate path params
-  const pathResult = pathSchema.safeParse(pathParams);
-  if (!pathResult.success) {
-    return Response.json({
-      type: 'validation_error',
-      message: 'Invalid path parameters',
-      errors: pathResult.error.issues
-    }, { status: 400 });
-  }
-  
-  // Validate query params
-  const queryResult = querySchema.safeParse(queryParams);
-  if (!queryResult.success) {
-    return Response.json({
-      type: 'validation_error',
-      message: 'Invalid query parameters',
-      errors: queryResult.error.issues
-    }, { status: 400 });
-  }
-  
-  // Use validated, typed params
-  const { id, orgId } = pathResult.data; // string, string
-  const { active, page, search } = queryResult.data; // boolean|undefined, number|undefined, string|undefined
-  
-  // ... controller call with validated params
-}
+export default new Elysia({ name: 'api-router' })
+  .use(apiUsers)
+  .use(apiUsersId);
 ```
 
-## Required Validation Pattern
-
-Always validate both path and query params with separate Zod schemas. Return 400 status if validation fails.
+**Important**: Always use `.use()` for composition to preserve type chain.
 
 ## Error Handling
 
 ```ts
-import { toErrorResponse } from '../../error/err.response';
+import { toErrorResponse } from '@/src/error/err.response';
 
 // In handler
 if (error) {
-  return toErrorResponse({ req, error });
+  set.status = error.statusCode;
+  return toErrorResponse({ error });
 }
 ```
 
@@ -164,26 +231,54 @@ if (error) {
 
 - **200** - Success (GET, PUT, PATCH, DELETE)
 - **201** - Created (POST)
-- **400** - Bad Request (validation errors)
+- **400** - Bad Request (validation errors - handled by Elysia)
 - **401** - Unauthorized (no session)
+- **404** - Not Found
 - **500** - Internal Server Error
+
+## OpenAPI Documentation
+
+Elysia auto-generates OpenAPI docs. Add metadata with `detail`:
+
+```ts
+.get('/users', handler, {
+  detail: {
+    tags: ['Users'],
+    summary: 'List all users',
+    description: 'Returns paginated list of users',
+  },
+})
+```
 
 ## Testing
 
-Always write `*.test.ts` file with same path. Test:
-- Correct error codes
-- No sensitive data leakage
-- API returns DTO only
-- Path/query parameter validation
+Write `*.test.ts` files with same path. Use Elysia's `.handle()` for unit testing:
+
+```ts
+import { describe, test, expect } from 'bun:test';
+import apiUsers from './api.users';
+
+describe('GET /api/users', () => {
+  test('returns user list', async () => {
+    const response = await apiUsers.handle(
+      new Request('http://localhost/api/users')
+    );
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(Array.isArray(data)).toBe(true);
+  });
+});
+```
 
 Run tests: `bun test <pattern>`
 
+## More Documentation
 
-## More docs
+- https://elysiajs.com/essential/route.html
+- https://elysiajs.com/essential/validation.html
+- https://elysiajs.com/essential/plugin.html
 
-When needed you can read more
-- https://bun.com/docs/runtime/http/routing
-- https://bun.com/docs/runtime/http/server
+## Error Handling
 
-## Error handling
 @.opencode/prompt/error-handling.md

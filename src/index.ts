@@ -1,28 +1,34 @@
+import { Elysia } from 'elysia';
+import { swagger } from '@elysiajs/swagger';
+import apiRouter from './api/router';
+import index from './pages/index.html';
 
-try {
-  const server = Bun.serve({
-    routes: {
-      // Wildcard route for all routes that start with "/api/" and aren't otherwise matched
-      "/api/*": () => Response.json({ message: "Not found" }, { status: 404 }),
-      "/*": () => new Response("NOT FOUND", { status: 404 })
+const app = new Elysia()
+  .use(swagger({
+    path: '/docs',
+    documentation: {
+      info: {
+        title: 'Visual Backend API',
+        version: '1.0.0',
+        description: 'API documentation for Visual Backend',
+      },
     },
+  }))
+  .use(apiRouter)
+  .get('/', index)
+  .onError(({ error, set }) => {
+    console.error('Unhandled error:', error);
+    set.status = 500;
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return {
+      error: 'Internal Server Error',
+      message: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+    };
+  })
+  .listen(process.env.PORT || 3000);
 
-    port: process.env.PORT || 3000,
-    development: process.env.NODE_ENV !== "production" && {
-      // Disable HMR temporarily due to CSS modules bug in Bun 1.3.3
-      // See: https://github.com/oven-sh/bun/issues/18258
-      hmr: false,
+console.log(`Server running on http://localhost:${app.server?.port}`);
+console.log(`API docs: http://localhost:${app.server?.port}/docs`);
 
-      // Echo console logs from the browser to the server
-      console: true,
-    },
-    idleTimeout: 10, // 10 seconds
-  });
-
-  console.log(`Server running on http://localhost:${server.port}`);
-  console.log(`boards: http://localhost:${server.port}/index`);
-} catch (error) {
-  console.error('Failed to start server:', error);
-  process.exit(1);
-}
-
+// Export app type for Eden client
+export type App = typeof app;
