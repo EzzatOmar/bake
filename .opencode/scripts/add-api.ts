@@ -7,15 +7,16 @@
  * API files export an Elysia instance with a prefix. Multiple endpoints
  * can be defined in a single file, each calling different controllers.
  *
- * Usage: bun run add-api <module> <name> [--force]
+ * Usage: bun run add-api <endpoint> [--force]
  *
  * Examples:
- *   bun run add-api user profile
- *   bun run add-api order checkout
+ *   bun run add-api /api/boards
+ *   bun run add-api /api/boards/:id
+ *   bun run add-api /api/users/profile
  */
 
 import { join } from 'path';
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
 
 interface Options {
   force?: boolean;
@@ -33,19 +34,43 @@ function toCamelCase(str: string): string {
   return pascal.charAt(0).toLowerCase() + pascal.slice(1);
 }
 
-function createApiTemplate(module: string, name: string): string {
-  const camelName = toCamelCase(name);
-  const camelModule = toCamelCase(module);
-  const pascalModule = toPascalCase(module);
+function parseEndpoint(endpoint: string): { prefix: string; name: string } {
+  // Remove leading slash if present
+  let path = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+
+  // Remove trailing slash if present
+  path = path.endsWith('/') ? path.slice(0, -1) : path;
+
+  // Split by /
+  const parts = path.split('/');
+
+  // Remove 'api' prefix if present
+  if (parts[0] === 'api') {
+    parts.shift();
+  }
+
+  // Filter out path parameters (e.g., :id)
+  const staticParts = parts.filter(p => !p.startsWith(':'));
+
+  // The name is the last static part
+  const name = staticParts[staticParts.length - 1] || 'index';
+
+  // The prefix is the full path up to and including the name
+  const prefix = '/api/' + staticParts.join('/');
+
+  return { prefix, name };
+}
+
+function createApiTemplate(prefix: string, name: string): string {
   const pascalName = toPascalCase(name);
+  const camelName = toCamelCase(name);
 
   return `/**
  * API Router: api.${name}
- * Module: ${module}
- * Prefix: /api/${module}/${name}
+ * Prefix: ${prefix}
  *
  * This Elysia router handles HTTP endpoints for ${name}.
- * - Export default: new Elysia({ prefix: '/api/...' })
+ * - Export default: new Elysia({ prefix: '${prefix}' })
  * - Each endpoint calls a controller
  * - Validation is done with Elysia's built-in validation
  *
@@ -62,7 +87,7 @@ function createApiTemplate(module: string, name: string): string {
 
 import { Elysia, t } from 'elysia';
 // TODO: Import your controllers
-// import ctrl${pascalModule}${pascalName} from '@/src/controller/${module}/ctrl.${name}';
+// import ctrlGet${pascalName} from '@/src/controller/ctrl.get-${name}';
 
 // -----------------------------------------------------------------------------
 // Types
@@ -78,9 +103,9 @@ import { Elysia, t } from 'elysia';
 // Router
 // -----------------------------------------------------------------------------
 
-export default new Elysia({ prefix: '/api/${module}/${name}' })
+export default new Elysia({ prefix: '${prefix}' })
   /**
-   * GET /api/${module}/${name}/:id
+   * GET ${prefix}/:id
    *
    * TODO: Describe what this endpoint does
    */
@@ -89,7 +114,7 @@ export default new Elysia({ prefix: '/api/${module}/${name}' })
     // const portal = { db: mainDb };
 
     // TODO: Call controller
-    // const [data, err] = await ctrl${pascalModule}${pascalName}(portal, { id: params.id });
+    // const [data, err] = await ctrlGet${pascalName}(portal, { id: params.id });
     // if (err) {
     //   set.status = err.statusCode;
     //   return { error: err.externalMessage?.en || 'An error occurred' };
@@ -104,12 +129,12 @@ export default new Elysia({ prefix: '/api/${module}/${name}' })
     }),
     detail: {
       summary: 'Get ${name} by ID',
-      tags: ['${module}'],
+      tags: ['${name}'],
     },
   })
 
   /**
-   * POST /api/${module}/${name}
+   * POST ${prefix}
    *
    * TODO: Describe what this endpoint does
    */
@@ -118,7 +143,7 @@ export default new Elysia({ prefix: '/api/${module}/${name}' })
     // const portal = { db: mainDb };
 
     // TODO: Call controller
-    // const [data, err] = await ctrl${pascalModule}Create${pascalName}(portal, body);
+    // const [data, err] = await ctrlCreate${pascalName}(portal, body);
     // if (err) {
     //   set.status = err.statusCode;
     //   return { error: err.externalMessage?.en || 'An error occurred' };
@@ -135,53 +160,50 @@ export default new Elysia({ prefix: '/api/${module}/${name}' })
     }),
     detail: {
       summary: 'Create ${name}',
-      tags: ['${module}'],
+      tags: ['${name}'],
     },
   });
 `;
 }
 
-async function addApi(module: string, name: string, options: Options = {}) {
-  if (!module || !name) {
-    console.error('Module and name required. Usage: bun run add-api <module> <name>');
+async function addApi(endpoint: string, options: Options = {}) {
+  if (!endpoint) {
+    console.error('Endpoint required. Usage: bun run add-api <endpoint>');
+    console.error('Example: bun run add-api /api/boards');
     process.exit(1);
   }
 
-  // Validate module name
-  if (!/^[a-z][a-z0-9-]*$/.test(module)) {
-    console.error('Invalid module name. Use lowercase letters, numbers, and hyphens. Must start with a letter.');
-    process.exit(1);
-  }
+  const { prefix, name } = parseEndpoint(endpoint);
 
-  // Validate api name
+  // Validate name
   if (!/^[a-z][a-z0-9-]*$/.test(name)) {
-    console.error('Invalid API name. Use lowercase letters, numbers, and hyphens. Must start with a letter.');
+    console.error('Invalid endpoint name. The last path segment must use lowercase letters, numbers, and hyphens.');
     process.exit(1);
   }
 
   const projectRoot = process.cwd();
-  const apiDir = join(projectRoot, 'src', 'api', module);
+  const apiDir = join(projectRoot, 'src', 'api');
   const fileName = `api.${name}.ts`;
   const filePath = join(apiDir, fileName);
 
   // Check if file exists
   if (existsSync(filePath) && !options.force) {
-    console.log(`File "${fileName}" already exists in ${module}. Use --force to overwrite.`);
+    console.log(`File "${fileName}" already exists. Use --force to overwrite.`);
     return;
   }
 
-  // Create module directory if needed
+  // Create api directory if needed
   if (!existsSync(apiDir)) {
     mkdirSync(apiDir, { recursive: true });
-    console.log(`Created module directory: src/api/${module}/`);
+    console.log(`Created directory: src/api/`);
   }
 
   // Create the file
-  const content = createApiTemplate(module, name);
+  const content = createApiTemplate(prefix, name);
   writeFileSync(filePath, content);
 
-  console.log(`Created: src/api/${module}/${fileName}`);
-  console.log(`\nAPI prefix: /api/${module}/${name}`);
+  console.log(`Created: src/api/${fileName}`);
+  console.log(`\nAPI prefix: ${prefix}`);
   console.log(`\nNext steps:`);
   console.log(`  1. Import your controllers`);
   console.log(`  2. Create the portal with database access`);
@@ -189,8 +211,8 @@ async function addApi(module: string, name: string, options: Options = {}) {
   console.log(`  4. Wire up endpoints to controllers`);
   console.log(`  5. Register this router in src/api-router.ts`);
   console.log(`\nTo register in api-router.ts:`);
-  console.log(`  import api${toPascalCase(module)}${toPascalCase(name)} from './api/${module}/api.${name}';`);
-  console.log(`  app.use(api${toPascalCase(module)}${toPascalCase(name)});`);
+  console.log(`  import api${toPascalCase(name)} from './api/api.${name}';`);
+  console.log(`  app.use(api${toPascalCase(name)});`);
 }
 
 // CLI
@@ -199,19 +221,18 @@ if (import.meta.main) {
 
   if (args.includes('--help') || args.includes('-h') || args.length === 0) {
     console.log(`
-Usage: bun run add-api <module> <name> [options]
+Usage: bun run add-api <endpoint> [options]
 
 Creates an Elysia API router (api.*) for HTTP endpoints.
 
 Arguments:
-  module        Module name (e.g., "user", "order")
-  name          API name (e.g., "profile", "checkout")
+  endpoint      API endpoint path (e.g., "/api/boards", "/api/users/:id")
 
 Options:
   --force       Force overwrite existing file
   --help, -h    Show this help
 
-File created: src/api/<module>/api.<name>.ts
+File created: src/api/api.<name>.ts
 
 Notes:
 - One API file can have multiple endpoints (GET, POST, etc.)
@@ -219,17 +240,17 @@ Notes:
 - Remember to register the router in src/api-router.ts
 
 Examples:
-  bun run add-api user profile
-  bun run add-api order checkout --force
+  bun run add-api /api/boards
+  bun run add-api /api/boards/:id
+  bun run add-api /api/users/profile --force
 `);
     process.exit(0);
   }
 
   const positionalArgs = args.filter(a => !a.startsWith('--'));
-  const module = positionalArgs[0];
-  const name = positionalArgs[1];
+  const endpoint = positionalArgs[0];
 
-  addApi(module, name, {
+  addApi(endpoint, {
     force: args.includes('--force'),
   }).catch(console.error);
 }
