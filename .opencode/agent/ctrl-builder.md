@@ -5,137 +5,267 @@ mode: subagent
 
 Controllers are located in `src/controller/<MODULE>`.
 
-- **Always export the controller function**
-- Have prefix `ctrl`
-- e.g. `src/controller/data/ctrl.get-data.ts`
+- **Always export default the controller function**
+- Have prefix `ctrl.`
+- e.g. `src/controller/user/ctrl.get-profile.ts`
+
+## Quick Start
+
+Use the template script to create a new controller:
+```bash
+bun run .opencode/scripts/add-ctrl.ts <module> <name>
+# Example: bun run .opencode/scripts/add-ctrl.ts user get-profile
+```
 
 ## Controller Structure
 
-Controllers handle business logic and coordinate between different layers. They:
-- Accept a portal object containing non-serializable dependencies
+Controllers handle business logic orchestration. They:
+- Accept a portal object containing non-serializable dependencies (db, session)
 - Accept args object containing serializable parameters
-- Use DTOs for all input and output data
-- Return tuples in the format `[data, error]`
-- Handle error transformation and logging
+- Return tuples in the format `[data, error]` using `TErrTuple<T>`
+- Coordinate calls to functions (fn.*, fx.*, tx.*)
 
 ## Function Signature
 
 ```ts
-export async function ctrlName(
-  portal: TPortal, 
+async function ctrlModuleName(
+  portal: TPortal,
   args: TArgs
-): Promise<TTuple<TResponse>>
+): Promise<TErrTuple<TData>>
+
+export default ctrlModuleName;
 ```
 
 ## Types
 
 TPortal and TArgs must be created in the same file.
 
-**IMPORTANT**: TPortal should **only contain variables** (like db connections, session data), **NOT functions**. 
-Controllers should import and call functions directly. This keeps the architecture clean:
-- Functions that need dependencies (like db) should accept them as parameters
-- The controller imports the function and calls it with the needed variables from TPortal
-- TPortal is for mocking non-serializable dependencies in tests, not for dependency injection of functions
+**IMPORTANT**: TPortal should **only contain variables** (like db connections, session data), **NOT functions**.
+Controllers should import and call functions directly.
 
 ```ts
-// other imports
-import { Database } from 'bun:sqlite';
-import * as users from './schema.user'; // user database schema
+import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
+import type { Database } from 'bun:sqlite';
+import * as schema from '@/src/database/main/schema.main';
 
-// ✅ CORRECT: Import functions to use them directly
+// Import functions to use them directly
 import fxGetUserData from '@/src/function/user/fx.get-user-data';
 
-/**
- * Used to stub the controller for testing
- */
-export type TPortal = {
-  session: TSession; // e.g. api layer resolves this
-  db: BunSQLiteDatabase<typeof users> & { $client: Database; }; // always pass db object in portal to be able to mock the ctrl
-  // other non-serializable dependencies or mockable data (NO FUNCTIONS!)
-}; 
-
-export type TArgs = {
-  // serializable parameters, usually payload for the controller
+/** Portal: non-serializable dependencies */
+type TPortal = {
+  db: BunSQLiteDatabase<typeof schema> & { $client: Database };
+  session: TSession | null;
+  // NO FUNCTIONS in portal!
 };
 
-// ✅ CORRECT: Call function directly in controller
-export async function ctrlExample(portal: TPortal, args: TArgs): Promise<TErrTuple<TResponse>> {
-  // Call the function with db from portal
+/** Args: serializable parameters */
+type TArgs = {
+  userId: string;
+};
+
+/** Data: return type on success */
+type TData = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+async function ctrlUserGetProfile(
+  portal: TPortal,
+  args: TArgs
+): Promise<TErrTuple<TData>> {
+  // Call imported function with db from portal
   const [data, err] = await fxGetUserData({ db: portal.db }, { userId: args.userId });
-  // ...
+  if (err) return [null, err];
+
+  return [data, null];
 }
+
+export default ctrlUserGetProfile;
 ```
 
 **Anti-pattern (DO NOT DO THIS)**:
 ```ts
-// ❌ WRONG: Do not pass functions through TPortal
-export type TPortal = {
-  session: TSession;
-  db: BunSQLiteDatabase<typeof users> & { $client: Database; };
-  fxGetUserData: typeof fxGetUserData; // ❌ NO! Functions should not be in TPortal
+// WRONG: Do not pass functions through TPortal
+type TPortal = {
+  db: ...;
+  fxGetUserData: typeof fxGetUserData; // NO!
 };
 ```
 
-## Database Usage
+## Complete Example
 
-Use the drizzle instance from `@src/database/user/conn.user.ts`:
 ```ts
-import { drizzleDb } from "@src/database/user/conn.user.ts";
+/**
+ * Controller: ctrl.get-profile
+ * Module: user
+ */
+
+import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
+import type { Database } from 'bun:sqlite';
+import * as schema from '@/src/database/main/schema.main';
+import fxUserGetById from '@/src/function/user/fx.get-by-id';
+import { ErrCode } from '@/src/error/err.enum';
+
+type TPortal = {
+  db: BunSQLiteDatabase<typeof schema> & { $client: Database };
+  session: { userId: string } | null;
+};
+
+type TArgs = {
+  userId: string;
+};
+
+type TData = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+async function ctrlUserGetProfile(
+  portal: TPortal,
+  args: TArgs
+): Promise<TErrTuple<TData>> {
+  // Authorization check
+  if (!portal.session) {
+    return [null, {
+      code: ErrCode.CTRL_USER_UNAUTHORIZED,
+      statusCode: 401,
+      externalMessage: { en: 'Authentication required' },
+    }];
+  }
+
+  // Call effectful function
+  const [user, err] = await fxUserGetById(
+    { db: portal.db },
+    { id: args.userId }
+  );
+
+  if (err) return [null, err];
+
+  return [{
+    id: user.id,
+    name: user.name,
+    email: user.email,
+  }, null];
+}
+
+export default ctrlUserGetProfile;
+```
+
+## Handling Transactional Functions
+
+When calling `tx.*` functions, handle rollbacks on error:
+
+```ts
+async function ctrlUserCreate(
+  portal: TPortal,
+  args: TArgs
+): Promise<TErrTuple<TData>> {
+  // Call transactional function
+  const [result, err, rollbacks] = await txUserCreate(
+    { db: portal.db },
+    args
+  );
+
+  if (err) {
+    // Execute rollbacks in reverse order
+    for (let i = rollbacks.length - 1; i >= 0; i--) {
+      await rollbacks[i]();
+    }
+    return [null, err];
+  }
+
+  return [result, null];
+}
 ```
 
 ## Error Handling
 
-Always wrap controller logic in try-catch and return proper error tuples:
+Always wrap controller logic in try-catch for unexpected errors:
+
 ```ts
-try {
-  // controller logic
-  return [response, null];
-} catch (error) {
-  const msg = error instanceof Error ? error.message : 'Unknown error';
-  const err: TErrorEntry = {
-    code: ErrorCode.CONTROLLER_<MODULE>_<ACTION>_FAILED,
-    statusCode: 500,
-    externalMessage: {
-      en: 'Failed to process request',
-      de: 'Anforderung konnte nicht verarbeitet werden',
-      fr: 'Échec du traitement de la demande'
-    },
-    internalMessage: msg,
-    shouldLogInternally: true,
-    internalLogLevel: "error",
-    handlebarsParams: {},
-    internalMetadata: {},
-    needsInspection: false
-  };
-  return [null, err];
+async function ctrlExample(portal: TPortal, args: TArgs): Promise<TErrTuple<TData>> {
+  try {
+    // controller logic...
+    return [response, null];
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Unknown error';
+    return [null, {
+      code: ErrCode.CTRL_EXAMPLE_UNEXPECTED,
+      statusCode: 500,
+      externalMessage: { en: 'An unexpected error occurred' },
+      internalMessage: msg,
+      shouldLogInternally: true,
+      internalLogLevel: 'error',
+    }];
+  }
 }
 ```
 
-## DTOs
-
-All data in and out must be DTOs. Import DTOs from `@dto/` namespace and use transformation functions.
-
 ## Testing
 
-You will always write a test file with the same path but suffix `*.test.ts`.
-Make sure to stub out every TPortal var with test object replacement.
-You also can spy on them
+Write test files with the same path but `.test.ts` suffix:
+
 ```ts
-import { test, expect, spyOn } from "bun:test";
+import { describe, test, expect, mock } from 'bun:test';
+import ctrlUserGetProfile from './ctrl.get-profile';
+import type { TPortal } from './ctrl.get-profile';
 
-const leo = {
-  name: "Leonardo",
-  sayHi(thing: string) {
-    console.log(`Sup I'm ${this.name} and I like ${thing}`);
-  },
-};
+describe('ctrlUserGetProfile', () => {
+  test('returns user profile when authenticated', async () => {
+    const mockDb = {
+      // mock drizzle methods
+    };
 
-const spy = spyOn(leo, "sayHi");
+    const portal: TPortal = {
+      db: mockDb as any,
+      session: { userId: 'user-123' },
+    };
+
+    const [result, error] = await ctrlUserGetProfile(portal, {
+      userId: 'user-123',
+    });
+
+    expect(error).toBeNull();
+    expect(result).toHaveProperty('id');
+  });
+
+  test('returns error when not authenticated', async () => {
+    const portal: TPortal = {
+      db: {} as any,
+      session: null,
+    };
+
+    const [result, error] = await ctrlUserGetProfile(portal, {
+      userId: 'user-123',
+    });
+
+    expect(result).toBeNull();
+    expect(error?.statusCode).toBe(401);
+  });
+});
 ```
 
-Run the tests with `bun test <pattern>`
+Run tests: `bun test <pattern>`
 
-You can read more in @.opencode/prompt/how-to-write-tests.md
+See @.opencode/prompt/how-to-write-tests.md for more testing patterns.
 
-## Error handling
+## Controller Responsibilities
+
+**DO:**
+- Orchestrate calls to functions (fn.*, fx.*, tx.*)
+- Handle authorization checks
+- Transform data between layers
+- Handle rollbacks for transactional operations
+- Return appropriate error tuples
+
+**DON'T:**
+- Contain direct business logic (use functions)
+- Access HTTP request/response objects (that's API layer)
+- Import Elysia or HTTP-specific code
+- Make direct database queries (use fx.* functions)
+
+## Error Handling
+
 @.opencode/prompt/error-handling.md

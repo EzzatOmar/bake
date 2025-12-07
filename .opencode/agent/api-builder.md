@@ -40,6 +40,14 @@ export default new Elysia({ prefix: '/api/users' })
 - **Controller import**: Must import at least one `ctrl.*` file
 - **File location**: `src/api/<module>/api.<name>.ts`
 
+## Quick Start
+
+Use the template script to create a new API file:
+```bash
+bun run .opencode/scripts/add-api.ts <module> <name>
+# Example: bun run .opencode/scripts/add-api.ts user profile
+```
+
 ## Authentication
 
 Use the auth plugin directly in API files that need authentication. The plugin **must** be `.use()`'d in the child router (not api-router.ts) to get proper type inference for `{ user, session }`.
@@ -246,13 +254,13 @@ export default new Elysia({ prefix: '/api/users' })
 
 ## Router Composition
 
-After creating an API file, add it to `src/api/router.ts`:
+After creating an API file, add it to `src/api-router.ts`:
 
 ```ts
 import { Elysia } from 'elysia';
 
-import apiUsers from './user/api.users';
-import apiUsersId from './user/api.users.:id';
+import apiUsers from './api/user/api.users';
+import apiUsersId from './api/user/api.users.:id';
 
 export default new Elysia({ name: 'api-router' })
   .use(apiUsers)
@@ -295,6 +303,8 @@ Elysia auto-generates OpenAPI docs. Add metadata with `detail`:
   },
 })
 ```
+
+Swagger UI available at `/docs` (configured in `src/index.ts`).
 
 ## Testing
 

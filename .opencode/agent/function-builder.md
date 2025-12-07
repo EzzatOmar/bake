@@ -6,204 +6,313 @@ mode: subagent
 Functions are located in `src/function/<MODULE>`.
 
 - **Always export default function**
-- Have prefix `fn`, `fx`, `tx`
+- Have prefix `fn.`, `fx.`, or `tx.`
 - e.g. `src/function/payment/tx.send-money.ts`
 
-## Pure functions `fn`
+## Quick Start
 
-No side effects. Function signature is
-> fn(args: IN): OUT
+Use the template scripts to create functions:
+```bash
+# Pure function (no side effects)
+bun run .opencode/scripts/add-fn.ts <module> <name>
 
-## Effectful function `fx`
+# Effectful function (side effects, no rollback)
+bun run .opencode/scripts/add-fx.ts <module> <name>
 
-Make read actions to internal/external systems.
-E.g. db read, http lookup, read os time
-> fn(portal: TPortal, args: TArgs): TTuple<T>
+# Transactional function (side effects with rollback)
+bun run .opencode/scripts/add-tx.ts <module> <name>
+```
 
-## Transactional function `tx`
+Examples:
+```bash
+bun run .opencode/scripts/add-fn.ts user validate-email
+bun run .opencode/scripts/add-fx.ts user get-by-id
+bun run .opencode/scripts/add-tx.ts user create
+```
 
-Make write/delete actions.
-E.g. db write, send payment
+## Function Types
 
-> fn(portal: TPortal, args: TArgs): TTriple<T>
+### Pure Functions `fn.*`
 
-### Rollback Functions
+No side effects. Synchronous. Same input always produces same output.
 
-Transactional functions MUST provide rollback functions to reverse the action if possible. 
+```ts
+// src/function/user/fn.validate-email.ts
+type TArgs = { email: string };
+type TData = { isValid: boolean; normalized: string };
 
-**Rollback Function Signature**: `() => Promise<TErrTriple<string>>`
+function fnUserValidateEmail(args: TArgs): TErrTuple<TData> {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-**Implementation Rules**:
-1. **Always create rollback functions** when the action can be reversed
-2. **Add rollback functions to the rollbacks array** before returning success
-3. **Database operations**: Use delete/update queries to reverse insert/update operations
-4. **External operations**: Call corresponding reverse APIs (e.g., delete created resource)
-5. **When reversal is impossible**: Return empty rollbacks array but document why in comments
+  if (!emailRegex.test(args.email)) {
+    return [null, {
+      code: ErrCode.FN_USER_INVALID_EMAIL,
+      statusCode: 400,
+      externalMessage: { en: 'Invalid email format' },
+    }];
+  }
 
-**Example Pattern**:
-```typescript
-async function txInsertBook(portal: TPortal, args: TArgs): Promise<TErrTriple<TResult>> {
-  const { db } = portal;
+  return [{
+    isValid: true,
+    normalized: args.email.toLowerCase().trim(),
+  }, null];
+}
+
+export default fnUserValidateEmail;
+```
+
+**Use fn.* when:**
+- Validating data
+- Transforming data
+- Calculating values
+- Parsing input
+
+### Effectful Functions `fx.*`
+
+Side effects (reads from db, external APIs). Returns `TErrTuple<T>`.
+
+```ts
+// src/function/user/fx.get-by-id.ts
+type TPortal = {
+  db: typeof mainDb;
+};
+
+type TArgs = { id: string };
+type TData = { id: string; name: string; email: string };
+
+async function fxUserGetById(
+  portal: TPortal,
+  args: TArgs
+): Promise<TErrTuple<TData>> {
+  const user = await portal.db.query.users.findFirst({
+    where: eq(schema.users.id, args.id),
+  });
+
+  if (!user) {
+    return [null, {
+      code: ErrCode.FX_USER_NOT_FOUND,
+      statusCode: 404,
+      externalMessage: { en: 'User not found' },
+    }];
+  }
+
+  return [user, null];
+}
+
+export default fxUserGetById;
+```
+
+**Use fx.* when:**
+- Reading from database
+- Calling external APIs (read-only)
+- Operations that don't need rollback
+
+### Transactional Functions `tx.*`
+
+Side effects with rollback support. Returns `TErrTriple<T>`.
+
+```ts
+// src/function/user/tx.create.ts
+type TPortal = {
+  db: typeof mainDb;
+};
+
+type TArgs = { name: string; email: string };
+type TData = { id: string; name: string; email: string };
+
+async function txUserCreate(
+  portal: TPortal,
+  args: TArgs
+): Promise<TErrTriple<TData>> {
   const rollbacks: TExternalRollback[] = [];
 
   try {
-    // Perform the main operation
-    const result = await db.insert(books).values(args).returning();
-    
-    // Create rollback function
-    const rollback: TExternalRollback = async () => {
+    const [user] = await portal.db.insert(schema.users)
+      .values({ name: args.name, email: args.email })
+      .returning();
+
+    // Add rollback for this operation
+    rollbacks.push(async () => {
       try {
-        await db.delete(books).where(eq(books.id, result[0].id));
-        return [`Successfully deleted book with ID ${result[0].id}`, null, []];
-      } catch (error) {
+        await portal.db.delete(schema.users).where(eq(schema.users.id, user.id));
+        return [`Deleted user ${user.id}`, null, []];
+      } catch (e) {
         return [null, {
-          code: ErrCode.TX_BOOKS_INSERT_ROLLBACK_FAILED as any,
+          code: ErrCode.TX_USER_ROLLBACK_FAILED,
           statusCode: 500,
-          externalMessage: { en: "Failed to rollback book insertion" },
-          internalMessage: "Rollback failed: {{error}}",
-          handlebarsParams: { error: error instanceof Error ? error.message : String(error) },
-          shouldLogInternally: true,
+          externalMessage: { en: 'Rollback failed' },
         }, []];
       }
-    };
-    
-    rollbacks.push(rollback);
-    return [result[0], null, rollbacks];
-    
+    });
+
+    return [user, null, rollbacks];
   } catch (error) {
-    return [null, errorObject, rollbacks];
+    return [null, {
+      code: ErrCode.TX_USER_CREATE_FAILED,
+      statusCode: 500,
+      externalMessage: { en: 'Failed to create user' },
+    }, rollbacks];
   }
 }
+
+export default txUserCreate;
 ```
 
-**Important**: Rollbacks are executed by the caller in reverse order. Do not execute rollbacks internally.
+**Use tx.* when:**
+- Creating/updating/deleting database records
+- Calling external APIs that modify state
+- Operations that need rollback on failure
+
+## Rollback Functions
+
+**Signature**: `() => Promise<TErrTriple<string>>`
+
+**Rules:**
+1. Always create rollback functions when the action can be reversed
+2. Add rollback to array BEFORE returning success
+3. For DB: Use transactions when possible, rollback functions for external resources
+4. Rollbacks are executed by the CALLER in reverse order
+
+```ts
+const rollback: TExternalRollback = async () => {
+  try {
+    await deleteExternalResource(resourceId);
+    return [`Deleted resource ${resourceId}`, null, []];
+  } catch (error) {
+    return [null, {
+      code: ErrCode.ROLLBACK_FAILED,
+      statusCode: 500,
+      internalMessage: error instanceof Error ? error.message : 'Unknown',
+    }, []];
+  }
+};
+rollbacks.push(rollback);
+```
 
 ## Types
-You don't need to import global type found in @src/global.d.ts
 
-TPortal and TArgs must be created in the same file.
+Global types in `src/global.d.ts` are auto-imported:
+- `TErrTuple<T>` - `[T, null] | [null, TErrorEntry]`
+- `TErrTriple<T>` - `[T, null, TExternalRollback[]] | [null, TErrorEntry, TExternalRollback[]]`
+- `TExternalRollback` - `() => Promise<TErrTriple<string>>`
+- `TErrorEntry` - Error object with code, statusCode, messages
+
+TPortal and TArgs must be defined in the same file:
 ```ts
-/**
- * Used to stub the func for testing
- */
-export type TPortal = {...} // any non serializable parameter, like db connections or fetch fn
-export type TArgs = {...} // serializable parameter, usually payload for the fn
+type TPortal = { db: typeof mainDb };
+type TArgs = { userId: string };
 ```
 
 ## Testing
 
-You will always write a test file with the same path but suffix `*.test.ts`.
-Make sure to stub out every TPortal var with test object replacement.
-Never write integration tests.
+Write test files with `.test.ts` suffix in the same directory.
 
-### Database Testing Requirements
+### Database Testing
 
-**When your function uses a database connection** (TPortal contains `db: typeof <dbName>`), your test file MUST:
+When your function uses a database, use the testing database factory:
 
-1. **Import the testing database function** from the corresponding `conn.*.ts` file
-   - Example: `import { createTestingMagicCardsDb } from '@/src/database/magic-cards/conn.magic-cards';`
-   
-2. **Use in-memory database for tests** instead of mocking
-   - ✅ DO: `const testDb = createTestingMagicCardsDb();`
-   - ❌ DON'T: Mock the database with `mockDb = { select: ... }`
-
-3. **Why?** Testing databases ensure:
-   - Real SQL queries are tested
-   - Schema validation happens at test time
-   - Foreign key constraints are enforced
-   - Migrations are applied correctly
-
-**Example Pattern**:
-```typescript
-import { test, expect } from "bun:test";
-import { createTestingMagicCardsDb } from '@/src/database/magic-cards/conn.magic-cards';
-import fxGetUserData from './fx.get-user-data';
-import type { TPortal } from './fx.get-user-data';
-
-test('fxGetUserData should fetch user data', async () => {
-  const testDb = createTestingMagicCardsDb(); // auto applied migration
-  // seed db here
-  const portal: TPortal = { db: testDb };
-  
-  // ... test logic
-});
-```
-
-**Note**: The plugin will enforce this rule. If your function uses a database, the test file must import the corresponding `createTesting*Db` function.
-
-
-You also can spy on them
 ```ts
-import { test, expect, spyOn } from "bun:test";
+import { describe, test, expect } from 'bun:test';
+import { createTestingMainDb } from '@/src/database/main/conn.main';
+import fxUserGetById from './fx.get-by-id';
 
-const leo = {
-  name: "Leonardo",
-  sayHi(thing: string) {
-    console.log(`Sup I'm ${this.name} and I like ${thing}`);
-  },
-};
+describe('fxUserGetById', () => {
+  test('returns user when found', async () => {
+    const testDb = createTestingMainDb(); // In-memory, auto-migrated
 
-const spy = spyOn(leo, "sayHi");
-```
+    // Seed test data
+    await testDb.insert(schema.users).values({
+      id: 'user-1',
+      name: 'Test User',
+      email: 'test@example.com',
+    });
 
-### Testing Transactional Functions (`tx`)
+    const portal = { db: testDb };
+    const [result, error] = await fxUserGetById(portal, { id: 'user-1' });
 
-For transactional functions, you MUST test:
+    expect(error).toBeNull();
+    expect(result?.name).toBe('Test User');
+  });
 
-1. **Success case**: Verify the function returns result, null error, and rollbacks array
-2. **Rollback execution**: Test that rollback functions work correctly
-3. **Rollback failure**: Test rollback error handling
-4. **Validation errors**: Test all input validation scenarios
+  test('returns error when not found', async () => {
+    const testDb = createTestingMainDb();
+    const portal = { db: testDb };
 
-**Example Test Pattern**:
-```typescript
-test('txInsertBook should provide working rollback function', async () => {
-  const mockDb = {
-    // ... mock implementation for insert
-    delete: () => ({
-      where: () => Promise.resolve(1) // simulate successful delete
-    })
-  };
-  
-  const [result, error, rollbacks] = await txInsertBook(mockPortal, bookData);
-  
-  expect(error).toBeNull();
-  expect(result).not.toBeNull();
-  expect(rollbacks).toHaveLength(1);
-  
-  // Test rollback execution
-  const [rollbackResult, rollbackError] = await rollbacks[0]();
-  expect(rollbackError).toBeNull();
-  expect(rollbackResult).toContain("Successfully deleted");
-});
+    const [result, error] = await fxUserGetById(portal, { id: 'non-existent' });
 
-test('txInsertBook should handle rollback failure', async () => {
-  const mockDb = {
-    // ... mock implementation for insert
-    delete: () => ({
-      where: () => Promise.reject(new Error("Delete failed"))
-    })
-  };
-  
-  const [result, error, rollbacks] = await txInsertBook(mockPortal, bookData);
-  
-  // Test rollback failure
-  const [rollbackResult, rollbackError] = await rollbacks[0]();
-  expect(rollbackResult).toBeNull();
-  expect(rollbackError).not.toBeNull();
-  expect(rollbackError?.code).toBe("TX.BOOKS.INSERT.ROLLBACK_FAILED");
+    expect(result).toBeNull();
+    expect(error?.statusCode).toBe(404);
+  });
 });
 ```
 
-Run the tests with `bun test <pattern>`
+### Testing Transactional Functions
 
-You can read more in @.opencode/prompt/how-to-write-tests.md
+Test both success and rollback scenarios:
 
-## Error handling
+```ts
+describe('txUserCreate', () => {
+  test('returns user and rollback on success', async () => {
+    const testDb = createTestingMainDb();
+    const portal = { db: testDb };
+
+    const [result, error, rollbacks] = await txUserCreate(portal, {
+      name: 'New User',
+      email: 'new@example.com',
+    });
+
+    expect(error).toBeNull();
+    expect(result).not.toBeNull();
+    expect(rollbacks).toHaveLength(1);
+  });
+
+  test('rollback deletes created user', async () => {
+    const testDb = createTestingMainDb();
+    const portal = { db: testDb };
+
+    const [result, _, rollbacks] = await txUserCreate(portal, {
+      name: 'New User',
+      email: 'new@example.com',
+    });
+
+    // Execute rollback
+    const [rollbackMsg, rollbackErr] = await rollbacks[0]();
+    expect(rollbackErr).toBeNull();
+
+    // Verify user deleted
+    const user = await testDb.query.users.findFirst({
+      where: eq(schema.users.id, result!.id),
+    });
+    expect(user).toBeUndefined();
+  });
+});
+```
+
+Run tests: `bun test <pattern>`
+
+See @.opencode/prompt/how-to-write-tests.md for more testing patterns.
+
+## Function Responsibilities
+
+**DO:**
+- Single responsibility per function
+- Return proper error tuples
+- Provide rollbacks for tx.* functions
+- Use typed portals and args
+- Handle errors gracefully
+
+**DON'T:**
+- Mix pure and effectful logic
+- Execute rollbacks internally (caller does this)
+- Write documentation files
+- Import HTTP/framework-specific code
+
+## Error Handling
+
 @.opencode/prompt/error-handling.md
 
 ## Avoid
-Do not write extra documentation files. like .md or example.ts files to explain what you are doing.
-Use jsdoc strings. Keep comment short
 
-Do not compile code.
+- Do not write extra documentation files (.md or example.ts)
+- Use JSDoc strings sparingly, keep comments short
+- Do not compile code
