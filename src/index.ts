@@ -1,21 +1,24 @@
 import { Elysia } from 'elysia';
 import { swagger } from '@elysiajs/swagger';
-import apiRouter from './api/router';
-import index from './pages/index.html';
+import apiRouter from './api-router';
 
+/**
+ * Main application
+ * 
+ * Put Frontend routes here and api routes in api-router.ts
+ */
 const app = new Elysia()
   .use(swagger({
     path: '/docs',
     documentation: {
       info: {
-        title: 'Visual Backend API',
+        title: 'Backed Kanban API',
         version: '1.0.0',
-        description: 'API documentation for Visual Backend',
+        description: 'API documentation for Backed Kanban',
       },
     },
   }))
   .use(apiRouter)
-  .get('/', index)
   .onError(({ error, set }) => {
     console.error('Unhandled error:', error);
     set.status = 500;

@@ -99,7 +99,7 @@ export async function checkAfterWrite(input: {
     
     // Add hint message
     result.push({
-        message: "<hint>Add this API route to src/api/router.ts using .use()</hint>"
+        message: "<hint>Add this API route to src/api-router.ts using .use()</hint>"
     });
     
     return result;
@@ -143,7 +143,7 @@ export async function checkAfterEdit(input: {
     
     // Add hint message
     result.push({
-        message: "<hint>Add this API route to src/api/router.ts using .use()</hint>"
+        message: "<hint>Add this API route to src/api-router.ts using .use()</hint>"
     });
     
     return result;

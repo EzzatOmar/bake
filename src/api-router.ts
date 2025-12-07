@@ -1,7 +1,5 @@
 import { Elysia } from 'elysia';
-
-// Import API route plugins
-import apiHealth from './health/api.health';
+// Import API routes
 
 /**
  * API Router
@@ -11,5 +9,9 @@ import apiHealth from './health/api.health';
  *
  * Type safety is preserved through the .use() chain.
  */
-export default new Elysia({ name: 'api-router' })
-  .use(apiHealth);
+export default new Elysia({ 
+  name: 'api-router',
+  prefix: '/api/'
+})
+  // .use(apiHealth) // example add sub router
+  .all("*", Response.json({ message: "Not Found" }, { status: 404 }))
