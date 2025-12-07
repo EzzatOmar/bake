@@ -199,6 +199,7 @@ async function removeFrontendDependencies(projectRoot: string, options: DropFron
     'react-dom', 
     '@types/react',
     '@types/react-dom',
+    '@base-ui-components/react',
     '@react-grab/opencode',
     'react-grab'
   ];
@@ -308,13 +309,13 @@ Options:
   --help, -h      Show this help message
 
 Behavior:
-    - Removes src/components/ directory
+    - Removes src/components/ directory (including Button component and CSS modules)
     - Removes src/pages/ directory  
     - Removes src/global.css
     - Removes src/css-modules.d.ts
     - Removes src/dev.tsx
     - Leaves src/index.tsx unchanged (frontend init no longer renames index.ts)
-    - Removes all frontend dependencies: react, react-dom, @types/react, @types/react-dom, @react-grab/opencode, react-grab (unless --keep-deps)
+    - Removes all frontend dependencies: react, react-dom, @types/react, @types/react-dom, @base-ui-components/react, @react-grab/opencode, react-grab (unless --keep-deps)
     - Reverts package.json scripts to backend-only
     - Removes CSS modules from tsconfig.json
 

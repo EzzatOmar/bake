@@ -7,9 +7,11 @@
  * It uses TypeScript AST parsing to safely update server configuration files.
  * 
  * Features:
- * - Installs React dependencies
+ * - Installs React and Base UI dependencies
  * - Creates MPA structure with separate entry points
- * - Sets up shared components and global CSS
+ * - Sets up shared components with CSS modules
+ * - Creates Button component with CSS modules styling
+ * - Sets up global CSS and CSS modules types
  * - Safely updates server routes using AST parsing
  * - Configures Bun fullstack bundling
  * 
@@ -36,6 +38,8 @@ function isFrontendAlreadyInitialized(srcDir: string, componentsDir: string, pag
   const cssModulesTypes = join(srcDir, 'css-modules.d.ts');
   const headerComponent = join(componentsDir, 'comp.header.tsx');
   const navigationComponent = join(componentsDir, 'comp.navigation.tsx');
+  const buttonComponent = join(componentsDir, 'comp.button.tsx');
+  const buttonStylesFile = join(componentsDir, 'comp.button.module.css');
   const indexHtml = join(pagesDir, 'index.html');
   const indexTsx = join(pagesDir, 'index.tsx');
   const demoHtml = join(pagesDir, 'demo.html');
@@ -49,6 +53,8 @@ function isFrontendAlreadyInitialized(srcDir: string, componentsDir: string, pag
     existsSync(componentsDir) &&
     existsSync(headerComponent) &&
     existsSync(navigationComponent) &&
+    existsSync(buttonComponent) &&
+    existsSync(buttonStylesFile) &&
     existsSync(pagesDir) &&
     existsSync(indexHtml) &&
     existsSync(indexTsx) &&
@@ -73,10 +79,12 @@ async function initFrontend(options: InitFrontendOptions = DEFAULT_OPTIONS) {
       console.log('   Use --force to overwrite existing files.');
       console.log('\n📋 Current status:');
       console.log('   ✅ React dependencies installed');
+      console.log('   ✅ Base UI components installed');
       console.log('   ✅ Frontend directories exist');
       console.log('   ✅ Global CSS exists');
       console.log('   ✅ CSS modules types exist');
       console.log('   ✅ Shared components exist');
+      console.log('   ✅ Button component with CSS modules exists');
       console.log('   ✅ Homepage and demo page exist');
       console.log('\n💡 To add new pages, use: bun run add-page <page-name>');
       return;
@@ -161,6 +169,11 @@ async function initFrontend(options: InitFrontendOptions = DEFAULT_OPTIONS) {
     console.log('   3. Try: http://localhost:3000/demo (demo page)');
     console.log('\n📚 Documentation: .opencode/agent/frontend-builder.md');
     console.log('💡 Add more pages with: bun run add-page <page-name>');
+    console.log('\n🎨 New Features Added:');
+    console.log('   ✅ Base UI components installed (@base-ui-components/react)');
+    console.log('   ✅ Button component with CSS modules styling');
+    console.log('   ✅ CSS modules configured and ready to use');
+    console.log('   ✅ TypeScript support for CSS modules');
     console.log('\n📝 Note: Frontend initialization assumes src/index.tsx already exists.');
     console.log('   It no longer renames src/index.ts to src/index.tsx.');
 
@@ -175,6 +188,7 @@ async function installDependencies() {
   
   try {
     execSync('bun add react react-dom @types/react @types/react-dom', { stdio: 'inherit' });
+    execSync('bun add @base-ui-components/react', { stdio: 'inherit' });
     execSync('bun add -D @react-grab/opencode react-grab', { stdio: 'inherit' });
   } catch (error) {
     throw new Error('Failed to install React dependencies');
@@ -603,8 +617,11 @@ function createSharedComponents(componentsDir: string, force: boolean = false) {
   const headerFile = join(componentsDir, 'comp.header.tsx');
   const navigationFile = join(componentsDir, 'comp.navigation.tsx');
   const layoutFile = join(componentsDir, 'comp.layout.tsx');
+  const buttonFile = join(componentsDir, 'comp.button.tsx');
+  const buttonStylesFile = join(componentsDir, 'comp.button.module.css');
   
-  const componentsExist = existsSync(headerFile) && existsSync(navigationFile) && existsSync(layoutFile);
+  const componentsExist = existsSync(headerFile) && existsSync(navigationFile) && existsSync(layoutFile) && 
+                          existsSync(buttonFile) && existsSync(buttonStylesFile);
   
   if (componentsExist && !force) {
     console.log('ℹ️  Shared components already exist, skipping');
@@ -680,6 +697,179 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     console.log('✅ Created comp.layout.tsx');
   } else {
     console.log('ℹ️  comp.layout.tsx already exists, skipping');
+  }
+
+  // Button component with CSS modules
+  if (!existsSync(buttonFile) || force) {
+    const buttonComponent = `import React from 'react';
+import { Button as BaseUIButton } from '@base-ui-components/react/button';
+import styles from './comp.button.module.css';
+
+interface ButtonProps {
+  children: React.ReactNode;
+  variant?: 'primary' | 'secondary' | 'danger';
+  size?: 'small' | 'medium' | 'large';
+  onClick?: () => void;
+  disabled?: boolean;
+  type?: 'button' | 'submit' | 'reset';
+}
+
+export const Button: React.FC<ButtonProps> = ({ 
+  children, 
+  variant = 'primary', 
+  size = 'medium', 
+  onClick, 
+  disabled = false,
+  type = 'button'
+}) => {
+  const getClassName = () => {
+    const baseClasses = [styles.button];
+    baseClasses.push(styles[variant]);
+    baseClasses.push(styles[size]);
+    return baseClasses.join(' ');
+  };
+
+  return (
+    <BaseUIButton 
+      className={getClassName()}
+      onClick={onClick}
+      disabled={disabled}
+      type={type}
+    >
+      {children}
+    </BaseUIButton>
+  );
+};
+`;
+    writeFileSync(buttonFile, buttonComponent);
+    console.log('✅ Created comp.button.tsx');
+  } else {
+    console.log('ℹ️  comp.button.tsx already exists, skipping');
+  }
+
+  // Button CSS module styles
+  if (!existsSync(buttonStylesFile) || force) {
+    const buttonStyles = `/* Button Component Styles - CSS Modules */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  outline: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.button:focus-visible {
+  outline: 2px solid #667eea;
+  outline-offset: 2px;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* Variants */
+.primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 10px rgba(102, 126, 234, 0.4);
+}
+
+.secondary {
+  background: white;
+  color: #4a5568;
+  border: 2px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.secondary:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #cbd5e0;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.secondary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.danger {
+  background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+  color: white;
+  box-shadow: 0 4px 15px rgba(245, 101, 101, 0.4);
+}
+
+.danger:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(245, 101, 101, 0.6);
+}
+
+.danger:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 10px rgba(245, 101, 101, 0.4);
+}
+
+/* Sizes */
+.small {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  min-height: 2rem;
+}
+
+.medium {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  min-height: 2.5rem;
+}
+
+.large {
+  padding: 1rem 2rem;
+  font-size: 1.125rem;
+  min-height: 3rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .small {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8rem;
+  }
+  
+  .medium {
+    padding: 0.625rem 1.25rem;
+    font-size: 0.9rem;
+  }
+  
+  .large {
+    padding: 0.875rem 1.75rem;
+    font-size: 1rem;
+  }
+}
+`;
+    writeFileSync(buttonStylesFile, buttonStyles);
+    console.log('✅ Created comp.button.module.css');
+  } else {
+    console.log('ℹ️  comp.button.module.css already exists, skipping');
   }
 }
 
@@ -808,8 +998,15 @@ async function main() {
     console.log(`
 Visual Backend Frontend Initialization Script
 
-Sets up complete frontend structure with React, TypeScript, and Bun fullstack bundling.
+Sets up complete frontend structure with React, Base UI, TypeScript, CSS modules, and Bun fullstack bundling.
 Automatically detects existing frontend and skips creation unless --force is used.
+
+Features:
+  - Installs React and Base UI dependencies
+  - Creates shared components with CSS modules
+  - Sets up Button component with styled CSS modules
+  - Configures TypeScript for CSS modules
+  - Creates MPA structure with separate entry points
 
 Usage:
   bun run init-frontend [options]
