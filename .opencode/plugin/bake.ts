@@ -92,7 +92,7 @@ export const BakePlugin: Plugin = async (ctx) => {
         const result: TRuleResult[] = [];
         if (input.tool === "write") {
           const content = await Bun.file(output.metadata.filepath).text();
-          const fixedOutput = { directory: ctx.directory, filePath: output.metadata.filediff.file, content }
+          const fixedOutput = { directory: ctx.directory, filePath: output.metadata.filepath, content }
           
           result.push(...await ruleFns.checkAfterWrite(input, fixedOutput));
         } else if (input.tool === "edit") {

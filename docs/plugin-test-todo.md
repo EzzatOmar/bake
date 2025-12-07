@@ -5,6 +5,41 @@ This document contains test cases to verify that each rule in the plugin is work
 Run opencode with `opencode --model zai-coding-plan/glm-4.6 run --model [message]`
 e.g. `opencode run --model zai-coding-plan/glm-4.6 'write hello to ./hello.txt'`
 
+## Your Task
+ we are building a plugin for opencode @.opencode/agent/opencode-plugin-builder.md
+we have done a rewrite of the plugin and split the rules in different files. @.opencode/plugin/bake.ts
+
+you just is to run opencode with `opencode run --model zai-coding-plan/glm-4.6 [message]` and prompt it to to a specific write in a folder to check if the rule is applied.
+Usually only if violated it triggers a response. some prevent file changes some just throw after file changes to inform the agent.
+
+her is a list of your rules to check @docs/plugin-test-todo.md
+
+you can only check the plugin when running opencode with `opencode run --model zai-coding-plan/glm-4.6 message`. this will automatically
+
+Docuement your progress in this file. Write new BUG reports (short) for pm.
+
+
+## Test Summary (2025-12-07)
+
+### Passed Rules (Before-Write)
+- [x] gen.no-js-files - Agent auto-corrects to .ts
+- [x] gen.no-ts-file-in-root - Agent auto-corrects location
+- [x] fn.file-name - Agent auto-corrects to fn. prefix
+- [x] ctrl.file-name - Agent auto-corrects to ctrl. prefix
+- [x] api.file-name - Agent auto-corrects to api. prefix
+
+### Blocked Rules (After-Write)
+All after-write rules are blocked by BUG-002:
+- [ ] fn.default-export, fn.return-type, fn.parameter-count
+- [ ] api.default-export-is-elysia, api.imports-elysia
+- [ ] ctrl.default-export, ctrl.return-type
+
+### Critical Bugs Found
+- **BUG-001**: Relative paths not matched in isInWhichFolder checks
+- **BUG-002**: After-write rules broken - wrong metadata access (`filediff` vs `filepath`)
+
+---
+
 ## How to use this list:
 
 1. For each item below, create a file that violates the rule
@@ -23,7 +58,7 @@ e.g. `opencode run --model zai-coding-plan/glm-4.6 'write hello to ./hello.txt'`
 
 **Expected:** Plugin should prevent the operation with a clear error message
 
-**Status:** [ ] Not tested
+**Status:** [!] BLOCKED by BUG-002 - after-write rules not firing
 
 **File to check:** `.opencode/rule-fns/api/rule.api.default-export-is-elysia.ts`
 
@@ -53,7 +88,7 @@ e.g. `opencode run --model zai-coding-plan/glm-4.6 'write hello to ./hello.txt'`
 
 **Expected:** Plugin should prevent the operation with a clear error message
 
-**Status:** [ ] Not tested
+**Status:** [x] PASSED - Agent received error and auto-corrected to api.invalid.ts
 
 **File to check:** `.opencode/rule-fns/api/rule.api.file-name.ts`
 
@@ -98,7 +133,7 @@ e.g. `opencode run --model zai-coding-plan/glm-4.6 'write hello to ./hello.txt'`
 
 **Expected:** Plugin should prevent the operation with a clear error message
 
-**Status:** [ ] Not tested
+**Status:** [!] BLOCKED by BUG-002 - after-write rules not firing
 
 **File to check:** `.opencode/rule-fns/controller/rule.ctrl.default-export-is-function.ts`
 
@@ -113,7 +148,7 @@ e.g. `opencode run --model zai-coding-plan/glm-4.6 'write hello to ./hello.txt'`
 
 **Expected:** Plugin should prevent the operation with a clear error message
 
-**Status:** [ ] Not tested
+**Status:** [!] BLOCKED by BUG-002 - after-write rules not firing
 
 **File to check:** `.opencode/rule-fns/controller/rule.ctrl.default-export.ts`
 
@@ -128,7 +163,7 @@ e.g. `opencode run --model zai-coding-plan/glm-4.6 'write hello to ./hello.txt'`
 
 **Expected:** Plugin should prevent the operation with a clear error message
 
-**Status:** [ ] Not tested
+**Status:** [x] PASSED - Agent received error and auto-corrected to ctrl.invalid.ts
 
 **File to check:** `.opencode/rule-fns/controller/rule.ctrl.file-name.ts`
 
@@ -323,7 +358,7 @@ e.g. `opencode run --model zai-coding-plan/glm-4.6 'write hello to ./hello.txt'`
 
 **Expected:** Plugin should prevent the operation with a clear error message
 
-**Status:** [ ] Not tested
+**Status:** [!] BLOCKED by BUG-002 - after-write rules not firing due to wrong metadata access
 
 **File to check:** `.opencode/rule-fns/function/rule.fn.default-export.ts`
 
@@ -338,7 +373,7 @@ e.g. `opencode run --model zai-coding-plan/glm-4.6 'write hello to ./hello.txt'`
 
 **Expected:** Plugin should prevent the operation with a clear error message
 
-**Status:** [ ] Not tested
+**Status:** [x] PASSED - Agent received error and auto-corrected to fn.invalid.ts
 
 **File to check:** `.opencode/rule-fns/function/rule.fn.file-name.ts`
 
@@ -518,7 +553,7 @@ e.g. `opencode run --model zai-coding-plan/glm-4.6 'write hello to ./hello.txt'`
 
 **Expected:** Plugin should prevent the operation with a clear error message
 
-**Status:** [ ] Not tested
+**Status:** [x] PASSED - Agent received error and auto-corrected to .ts
 
 **File to check:** `.opencode/rule-fns/general/rule.gen.no-js-files.ts`
 
@@ -533,7 +568,7 @@ e.g. `opencode run --model zai-coding-plan/glm-4.6 'write hello to ./hello.txt'`
 
 **Expected:** Plugin should prevent the operation with a clear error message
 
-**Status:** [ ] Not tested
+**Status:** [x] PASSED - Agent received error, explained why and auto-corrected location
 
 **File to check:** `.opencode/rule-fns/general/rule.gen.no-ts-file-in-root.ts`
 
