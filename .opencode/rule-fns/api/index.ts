@@ -1,5 +1,6 @@
 import { TRuleResult } from "../rule-types";
 import { isTestFile } from "../../helper-fns/isTestFile";
+import { isInApiFolder } from "../../helper-fns/isInWhichFolder";
 import { ruleApiFileName } from "./rule.api.file-name";
 import { ruleApiImportsElysia } from "./rule.api.imports-elysia";
 import { ruleApiDefaultExportIsElysia } from "./rule.api.default-export-is-elysia";
@@ -16,6 +17,10 @@ export async function checkBeforeWrite(input: {
     filePath: string;
   }) {
     const result: TRuleResult[] = [];
+
+    if (!isInApiFolder({ directory: output.directory, filePath: output.filePath })) {
+        return result;
+    }
     
     // Skip test files
     if (isTestFile({ filePath: output.filePath })) {
@@ -40,6 +45,10 @@ export async function checkBeforeEdit(input: {
   }) {
     const result: TRuleResult[] = [];
     
+    if (!isInApiFolder({ directory: output.directory, filePath: output.filePath })) {
+        return result;
+    }
+    
     // Skip test files
     if (isTestFile({ filePath: output.filePath })) {
         return result;
@@ -62,6 +71,10 @@ export async function checkAfterWrite(input: {
     filePath: string;
   }) {
     const result: TRuleResult[] = [];
+    
+    if (!isInApiFolder({ directory: output.directory, filePath: output.filePath })) {
+        return result;
+    }
     
     // Skip test files
     if (isTestFile({ filePath: output.filePath })) {
@@ -102,6 +115,10 @@ export async function checkAfterEdit(input: {
     filePath: string;
   }) {
     const result: TRuleResult[] = [];
+    
+    if (!isInApiFolder({ directory: output.directory, filePath: output.filePath })) {
+        return result;
+    }
     
     // Skip test files
     if (isTestFile({ filePath: output.filePath })) {

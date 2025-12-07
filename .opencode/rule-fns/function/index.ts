@@ -18,6 +18,7 @@ import { ruleTxFirstParameterType } from "./rule.tx.first-parameter-type";
 import { ruleDatabaseConnectionImportsAreTypeOnly } from "./rule.fn.db-imports-type-only";
 import { ruleDbPortalType } from "./rule.fn.db-portal-type";
 import { ruleTestFileImportsTestingDb } from "./rule.fn.test-imports-testing-db";
+import { isInFunctionFolder } from "../../helper-fns/isInWhichFolder";
 
 // Helper functions to check function type
 function isFnFunction(filePath: string): boolean {
@@ -35,10 +36,6 @@ function isTxFunction(filePath: string): boolean {
     return fileName.startsWith("tx.");
 }
 
-function isFunctionFolder(directory: string, filePath: string): boolean {
-    const relativePath = path.relative(directory, filePath);
-    return relativePath.startsWith("src/function/");
-}
 
 export async function checkBeforeWrite(input: {
     tool: string;
@@ -51,16 +48,15 @@ export async function checkBeforeWrite(input: {
   }) {
     const result: TRuleResult[] = [];
     
+    if (!isInFunctionFolder({ directory: output.directory, filePath: output.filePath })) {
+        return result;
+    }
+    
     // Skip test files
     if (isTestFile({ filePath: output.filePath })) {
         return result;
     }
-    
-    // Only apply to function folder
-    if (!isFunctionFolder(output.directory, output.filePath)) {
-        return result;
-    }
-    
+
     // Path-based checks only (no parsing)
     const r1 = await ruleFunctionFileName(output);
     if (r1) result.push(r1);
@@ -88,7 +84,7 @@ export async function checkBeforeEdit(input: {
     }
     
     // Only apply to function folder
-    if (!isFunctionFolder(output.directory, output.filePath)) {
+    if (!isInFunctionFolder({ directory: output.directory, filePath: output.filePath })) {
         return result;
     }
     
@@ -121,7 +117,7 @@ export async function checkAfterWrite(input: {
     }
     
     // Only apply to function folder
-    if (!isFunctionFolder(output.directory, output.filePath)) {
+    if (!isInFunctionFolder({ directory: output.directory, filePath: output.filePath })) {
         return result;
     }
     
@@ -201,7 +197,7 @@ export async function checkAfterEdit(input: {
     }
     
     // Only apply to function folder
-    if (!isFunctionFolder(output.directory, output.filePath)) {
+    if (!isInFunctionFolder({ directory: output.directory, filePath: output.filePath })) {
         return result;
     }
     

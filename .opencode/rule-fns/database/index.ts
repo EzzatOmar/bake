@@ -4,6 +4,7 @@ import { ruleDatabaseFileName } from "./rule.database.file-name";
 import { ruleDatabaseFileNameMatchesDirectory } from "./rule.database.file-name-matches-directory";
 import { ruleDatabasePathDepth } from "./rule.database.path-depth";
 import { ruleNotBetterAuthSchema } from "./rule.database.not-better-auth-schema";
+import { isInDatabaseFolder } from "../../helper-fns/isInWhichFolder";
 
 export async function checkBeforeWrite(input: {
     tool: string;
@@ -16,14 +17,12 @@ export async function checkBeforeWrite(input: {
   }) {
     const result: TRuleResult[] = [];
     
-    // Skip test files
-    if (isTestFile({ filePath: output.filePath })) {
+    if (!isInDatabaseFolder({ directory: output.directory, filePath: output.filePath })) {
         return result;
     }
     
-    // Skip if not in database folder
-    const relativePath = output.filePath.replace(output.directory + "/", "");
-    if (!relativePath.startsWith("src/database/")) {
+    // Skip test files
+    if (isTestFile({ filePath: output.filePath })) {
         return result;
     }
     
@@ -54,14 +53,12 @@ export async function checkBeforeEdit(input: {
   }) {
     const result: TRuleResult[] = [];
     
-    // Skip test files
-    if (isTestFile({ filePath: output.filePath })) {
+    if (!isInDatabaseFolder({ directory: output.directory, filePath: output.filePath })) {
         return result;
     }
     
-    // Skip if not in database folder
-    const relativePath = output.filePath.replace(output.directory + "/", "");
-    if (!relativePath.startsWith("src/database/")) {
+    // Skip test files
+    if (isTestFile({ filePath: output.filePath })) {
         return result;
     }
     
@@ -92,14 +89,12 @@ export async function checkAfterWrite(input: {
   }) {
     const result: TRuleResult[] = [];
     
-    // Skip test files
-    if (isTestFile({ filePath: output.filePath })) {
+    if (!isInDatabaseFolder({ directory: output.directory, filePath: output.filePath })) {
         return result;
     }
     
-    // Skip if not in database folder
-    const relativePath = output.filePath.replace(output.directory + "/", "");
-    if (!relativePath.startsWith("src/database/")) {
+    // Skip test files
+    if (isTestFile({ filePath: output.filePath })) {
         return result;
     }
     
@@ -127,14 +122,12 @@ export async function checkAfterEdit(input: {
   }) {
     const result: TRuleResult[] = [];
     
-    // Skip test files
-    if (isTestFile({ filePath: output.filePath })) {
+    if (!isInDatabaseFolder({ directory: output.directory, filePath: output.filePath })) {
         return result;
     }
     
-    // Skip if not in database folder
-    const relativePath = output.filePath.replace(output.directory + "/", "");
-    if (!relativePath.startsWith("src/database/")) {
+    // Skip test files
+    if (isTestFile({ filePath: output.filePath })) {
         return result;
     }
     

@@ -75,10 +75,12 @@ export const BakePlugin: Plugin = async (ctx) => {
     "tool.execute.before": async (input, output) => {
       fileLog("tool.execute.before", JSON.stringify(input), JSON.stringify(output))
       const result: TRuleResult[] = [];
+      const fixedOutput = { directory: ctx.directory, filePath: output.args.filePath, content: output.args.content }
+
       if (input.tool === "write") {
-        result.push(...await ruleFns.checkBeforeWrite(input, output as any));
+        result.push(...await ruleFns.checkBeforeWrite(input, fixedOutput));
       } else if (input.tool === "edit") {
-        result.push(...await ruleFns.checkBeforeEdit(input, output as any));
+        result.push(...await ruleFns.checkBeforeEdit(input, fixedOutput));
       }
       await sendResultToAi(ctx, input, result);
 

@@ -6,6 +6,46 @@ function normalizePath(filePath: string): string {
 }
 
 /**
+ * Check if the file is in the /src/api folder
+ */
+export function isInApiFolder(args: { directory: string, filePath: string }): boolean {
+    const normalizedDirectory = normalizePath(args.directory);
+    const normalizedFilePath = normalizePath(args.filePath);
+    
+    return normalizedFilePath.startsWith(normalizedDirectory + "/src/api/");
+}
+
+/**
+ * Check if the file is in the /src/controller folder
+ */
+export function isInControllerFolder(args: { directory: string, filePath: string }): boolean {
+    const normalizedDirectory = normalizePath(args.directory);
+    const normalizedFilePath = normalizePath(args.filePath);
+    
+    return normalizedFilePath.startsWith(normalizedDirectory + "/src/controller/");
+}
+
+/**
+ * Check if the file is in the /src/function folder
+ */
+export function isInFunctionFolder(args: { directory: string, filePath: string }): boolean {
+    const normalizedDirectory = normalizePath(args.directory);
+    const normalizedFilePath = normalizePath(args.filePath);
+    
+    return normalizedFilePath.startsWith(normalizedDirectory + "/src/function/");
+}
+
+/**
+ * Check if the file is in the /src/database folder
+ */
+export function isInDatabaseFolder(args: { directory: string, filePath: string }): boolean {
+    const normalizedDirectory = normalizePath(args.directory);
+    const normalizedFilePath = normalizePath(args.filePath);
+    
+    return normalizedFilePath.startsWith(normalizedDirectory + "/src/database/");
+}
+
+/**
  * Check if the file is in the /docs folder
  */
 export function isInDocsFolder(args: { directory: string, filePath: string }): boolean {

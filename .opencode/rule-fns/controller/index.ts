@@ -8,6 +8,7 @@ import { ruleControllerFirstParameterIsPortal } from "./rule.ctrl.first-paramete
 import { ruleControllerSecondParameterIsArgs } from "./rule.ctrl.second-parameter-is-args";
 import { ruleControllerReturnType } from "./rule.ctrl.return-type";
 import { rulePortalDoesNotContainFunctions } from "./rule.ctrl.portal-does-not-contain-functions";
+import { isInControllerFolder } from "../../helper-fns/isInWhichFolder";
 
 export async function checkBeforeWrite(input: {
     tool: string;
@@ -19,6 +20,10 @@ export async function checkBeforeWrite(input: {
     filePath: string;
   }) {
     const result: TRuleResult[] = [];
+    
+    if (!isInControllerFolder({ directory: output.directory, filePath: output.filePath })) {
+        return result;
+    }
     
     // Skip test files
     if (isTestFile({ filePath: output.filePath })) {
@@ -43,6 +48,10 @@ export async function checkBeforeEdit(input: {
   }) {
     const result: TRuleResult[] = [];
     
+    if (!isInControllerFolder({ directory: output.directory, filePath: output.filePath })) {
+        return result;
+    }
+    
     // Skip test files
     if (isTestFile({ filePath: output.filePath })) {
         return result;
@@ -65,6 +74,10 @@ export async function checkAfterWrite(input: {
     filePath: string;
   }) {
     const result: TRuleResult[] = [];
+    
+    if (!isInControllerFolder({ directory: output.directory, filePath: output.filePath })) {
+        return result;
+    }
     
     // Skip test files
     if (isTestFile({ filePath: output.filePath })) {
@@ -109,6 +122,10 @@ export async function checkAfterEdit(input: {
     filePath: string;
   }) {
     const result: TRuleResult[] = [];
+    
+    if (!isInControllerFolder({ directory: output.directory, filePath: output.filePath })) {
+        return result;
+    }
     
     // Skip test files
     if (isTestFile({ filePath: output.filePath })) {
