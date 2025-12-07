@@ -14,6 +14,19 @@ export async function getDatabaseVariableNames(directory: string): Promise<strin
         // Find all conn.*.ts files in src/database directory
         const databaseDir = path.join(directory, "src", "database");
         
+        // Also check for drizzle config files in root directory
+        const rootDir = directory;
+        const drizzleFiles = fs.readdirSync(rootDir).filter(file => file.startsWith('drizzle.') && file.endsWith('.ts'));
+        
+        // Extract database names from drizzle config files
+        for (const drizzleFile of drizzleFiles) {
+            const match = drizzleFile.match(/^drizzle\.(.+)\.ts$/);
+            if (match) {
+                const dbName = match[1];
+                dbVariables.push(`${dbName}Db`);
+            }
+        }
+        
         if (!fs.existsSync(databaseDir)) {
             return dbVariables;
         }

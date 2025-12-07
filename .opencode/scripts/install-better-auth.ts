@@ -19,6 +19,38 @@ if (!dbNames.includes(dbName)) {
   process.exit(1);
 }
 
+// Ensure database directory exists
+const dbDir = path.join(projectRoot, "src/database", dbName);
+await mkdir(dbDir, { recursive: true });
+
+// Create connection file first
+const connFileContent = `import { drizzle } from "drizzle-orm/bun-sqlite";
+import { Database } from "bun:sqlite";
+import * as customSchema from "./schema.custom.${dbName}.ts";
+
+const sqlite = new Database("./database-storage/${dbName}.sqlite");
+export const ${dbName}Db = drizzle(sqlite, { schema: customSchema });
+
+// Export: database instance and schema
+export { customSchema };
+export type ${dbName}Db = typeof ${dbName}Db;
+`;
+
+await writeFile(path.join(dbDir, `conn.${dbName}.ts`), connFileContent, "utf8");
+console.log(`Created connection file: src/database/${dbName}/conn.${dbName}.ts`);
+
+// Create custom schema file
+const customSchemaContent = `// Custom schema for ${dbName} database
+// Add your custom tables here
+
+export const customSchema = {
+  // Add your custom tables here
+};
+`;
+
+await writeFile(path.join(dbDir, `schema.custom.${dbName}.ts`), customSchemaContent, "utf8");
+console.log(`Created custom schema file: src/database/${dbName}/schema.custom.${dbName}.ts`);
+
 const authServerFile = `// https://www.better-auth.com/docs/basic-usage
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -34,7 +66,7 @@ export const auth = betterAuth({
 });
 `;
 
-await writeFile(path.join(projectRoot, "src/database", dbName, `auth.${dbName}.ts`), authServerFile, "utf8");
+await writeFile(path.join(dbDir, `auth.${dbName}.ts`), authServerFile, "utf8");
 console.log(`Created auth file: src/database/${dbName}/auth.${dbName}.ts`);
 
 // Run drizzle-kit generate
@@ -80,8 +112,7 @@ schemaContent = warningHeader + schemaContent;
 await writeFile(finalSchemaFile, schemaContent, "utf8");
 console.log(`Added autogeneration warning to schema file`);
 
-// After running auth codegen, also update the connection file to combine authSchema.
-// Replace "const schema = customSchema;" with "const schema = { ...authSchema, ...customSchema };"
+// After running auth codegen, also update the connection file to combine authSchema with customSchema.
 const connFile = path.join(
   projectRoot,
   "src/database",
@@ -91,19 +122,22 @@ const connFile = path.join(
 
 let connContent = await readFile(connFile, "utf8");
 
-const regex = /const\s+schema\s*=\s*customSchema\s*;/;
-if (regex.test(connContent)) {
-  connContent = connContent.replace(
-    regex,
-    "import * as authSchema from './schema.better-auth." + dbName + ".ts';\nconst schema = { ...authSchema, ...customSchema };"
-  );
-  await writeFile(connFile, connContent, "utf8");
-  console.log(`Updated "${connFile}": combined authSchema and customSchema.`);
-} else {
-  console.log(
-    `Notice: Did not find "const schema = customSchema;" in ${connFile}. Skipped automatic replacement.`
-  );
-}
+// Update the connection file to include both auth and custom schemas
+const updatedConnContent = `import { drizzle } from "drizzle-orm/bun-sqlite";
+import { Database } from "bun:sqlite";
+import * as customSchema from "./schema.custom.${dbName}.ts";
+import * as authSchema from "./schema.better-auth.${dbName}.ts";
+
+const sqlite = new Database("./database-storage/${dbName}.sqlite");
+export const ${dbName}Db = drizzle(sqlite, { schema: { ...authSchema, ...customSchema } });
+
+// Export: database instance and schemas
+export { customSchema, authSchema };
+export type ${dbName}Db = typeof ${dbName}Db;
+`;
+
+await writeFile(connFile, updatedConnContent, "utf8");
+console.log(`Updated "${connFile}": combined authSchema and customSchema.`);
 
 // Create middleware function for session resolution
 const errorCode = `FX_${dbName.toUpperCase()}_SESSION_NOT_FOUND`;

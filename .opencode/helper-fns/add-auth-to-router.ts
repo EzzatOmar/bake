@@ -1,69 +1,71 @@
 import ts from 'typescript';
 import { readFileSync, writeFileSync } from 'fs';
+import path from 'path';
 
 /**
- * Add better-auth handler to the router in src/index.tsx or src/index.ts
+ * Add better-auth handler to the Elysia router
  * 
  * @param indexPath - Path to src/index.tsx or src/index.ts
  * @param dbName - Name of the database (e.g., "meetup")
  * @returns Object with success status and optional message
  */
 export function addAuthToRouter(indexPath: string, dbName: string): { success: boolean; message: string } {
-  const content = readFileSync(indexPath, 'utf-8');
-  const sourceFile = ts.createSourceFile(
-    indexPath,
-    content,
-    ts.ScriptTarget.Latest,
-    true
-  );
+  const projectRoot = path.resolve(indexPath, '..');
+  const apiRouterPath = path.join(projectRoot, 'api-router.ts');
+  
+  // Check if api-router.ts exists
+  try {
+    const apiRouterContent = readFileSync(apiRouterPath, 'utf-8');
+    const apiRouterSourceFile = ts.createSourceFile(
+      apiRouterPath,
+      apiRouterContent,
+      ts.ScriptTarget.Latest,
+      true
+    );
 
-  // Check if auth.handler already exists in routes
-  if (hasAuthHandler(sourceFile)) {
+    // Check if auth.handler already exists in api-router
+    if (hasAuthHandlerInElysia(apiRouterSourceFile)) {
+      return {
+        success: false,
+        message: 'Another better-auth handler already exists in the router. Running multiple better-auth instances is not good practice and needs developer support.'
+      };
+    }
+
+    // Generate import statement
+    const newImport = `import { auth } from "@/src/database/${dbName}/auth.${dbName}";`;
+    
+    // Insert new import at the top
+    const updatedContent = insertAuthImport(apiRouterContent, newImport);
+    
+    // Insert auth handler directly in Elysia chain
+    const finalContent = insertAuthHandlerInElysia(updatedContent, dbName);
+
+    // Write updated content
+    writeFileSync(apiRouterPath, finalContent);
+    
+    return {
+      success: true,
+      message: `Successfully added auth.handler to Elysia router for database "${dbName}"`
+    };
+  } catch (error) {
     return {
       success: false,
-      message: 'Another better-auth handler already exists in the router. Running multiple better-auth instances is not good practice and needs developer support.'
+      message: `Could not update api-router.ts: ${error instanceof Error ? error.message : 'Unknown error'}`
     };
   }
-
-  // Generate import statement
-  const newImport = `import { auth } from "@/src/database/${dbName}/auth.${dbName}";`;
-  
-  // Generate route entry
-  const newRoute = `      "/api/auth/*": auth.handler,`;
-
-  // Insert new import at the top
-  const updatedContent = insertAuthImport(content, newImport);
-  
-  // Insert new route in routes object
-  const finalContent = insertAuthRoute(updatedContent, newRoute);
-
-  // Write updated content
-  writeFileSync(indexPath, finalContent);
-  
-  return {
-    success: true,
-    message: `Successfully added auth.handler to router for database "${dbName}"`
-  };
 }
 
 /**
- * Check if auth.handler already exists in the routes
+ * Check if auth.handler already exists in the Elysia router
  */
-function hasAuthHandler(sourceFile: ts.SourceFile): boolean {
+function hasAuthHandlerInElysia(sourceFile: ts.SourceFile): boolean {
   let found = false;
 
   function visit(node: ts.Node) {
-    if (ts.isPropertyAssignment(node) && node.name.getText(sourceFile) === 'routes') {
-      if (ts.isObjectLiteralExpression(node.initializer)) {
-        node.initializer.properties.forEach(prop => {
-          if (ts.isPropertyAssignment(prop)) {
-            const value = prop.initializer?.getText(sourceFile);
-            // Check if value contains "auth.handler"
-            if (value && value.includes('auth.handler')) {
-              found = true;
-            }
-          }
-        });
+    if (ts.isCallExpression(node)) {
+      const expression = node.expression.getText(sourceFile);
+      if (expression.includes('auth.handler')) {
+        found = true;
       }
     }
     
@@ -108,28 +110,28 @@ function insertAuthImport(content: string, newImport: string): string {
 }
 
 /**
- * Insert auth route in the routes object
- * Find "routes: {" and insert auth.handler as the first route
+ * Insert auth handler in the Elysia chain
+ * Find the .use() chain and insert auth.handler before the catch-all route
  */
-function insertAuthRoute(content: string, newRoute: string): string {
+function insertAuthHandlerInElysia(content: string, _dbName: string): string {
   const lines = content.split('\n');
-  let insertIndex = -1;
-
-  // Find the routes object opening
+  
+  // Find the line with the catch-all route (.all("*", ...))
+  let catchAllIndex = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].includes('routes:') && lines[i].includes('{')) {
-      // Insert after "routes: {"
-      insertIndex = i + 1;
+    if (lines[i].includes('.all("*"') || lines[i].includes('.all("*"')) {
+      catchAllIndex = i;
       break;
     }
   }
 
-  if (insertIndex === -1) {
-    throw new Error('Could not find "routes: {" in the index file. The router structure may be unexpected.');
+  if (catchAllIndex === -1) {
+    throw new Error('Could not find catch-all route in api-router.ts. The router structure may be unexpected.');
   }
 
-  // Insert the auth route at the beginning of routes
-  lines.splice(insertIndex, 0, newRoute);
+  // Insert the auth handler before the catch-all route
+  const authHandlerLine = `  .use(auth.handler)`;
+  lines.splice(catchAllIndex, 0, authHandlerLine);
 
   return lines.join('\n');
 }

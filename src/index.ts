@@ -1,11 +1,12 @@
 import { Elysia } from 'elysia';
 import { swagger } from '@elysiajs/swagger';
 import apiRouter from './api-router';
+import { staticPlugin } from '@elysiajs/static'
 
 /**
  * Main application
  * 
- * Put Frontend routes here and api routes in api-router.ts
+ * Put Frontend are automatically served from ./src/page
  */
 const app = new Elysia()
   .use(swagger({
@@ -18,6 +19,7 @@ const app = new Elysia()
       },
     },
   }))
+  .use(await staticPlugin({ prefix: '/', assets: './src/page', indexHTML: true}))
   .use(apiRouter)
   .onError(({ error, set }) => {
     console.error('Unhandled error:', error);

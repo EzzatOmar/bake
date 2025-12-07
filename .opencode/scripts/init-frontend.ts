@@ -97,8 +97,12 @@ async function initFrontend(options: InitFrontendOptions = DEFAULT_OPTIONS) {
       mkdirSync(srcDir, { recursive: true });
     }
 
-    // 3. Check and rename src/index.ts if it exists
-    await handleIndexFile(projectRoot, srcDir);
+    // 3. Check if src/index.tsx exists (required for frontend)
+    if (!existsSync(join(srcDir, 'index.tsx'))) {
+      console.log('⚠️  src/index.tsx not found. Frontend requires index.tsx to exist.');
+      console.log('   Please ensure src/index.tsx exists before continuing.');
+      return;
+    }
 
     // 4. Create CSS modules type declaration
     console.log('📝 Creating CSS modules type declaration...');
@@ -157,6 +161,8 @@ async function initFrontend(options: InitFrontendOptions = DEFAULT_OPTIONS) {
     console.log('   3. Try: http://localhost:3000/demo (demo page)');
     console.log('\n📚 Documentation: .opencode/agent/frontend-builder.md');
     console.log('💡 Add more pages with: bun run add-page <page-name>');
+    console.log('\n📝 Note: Frontend initialization assumes src/index.tsx already exists.');
+    console.log('   It no longer renames src/index.ts to src/index.tsx.');
 
   } catch (error) {
     console.error('❌ Frontend initialization failed:', error);
@@ -175,20 +181,16 @@ async function installDependencies() {
   }
 }
 
-async function handleIndexFile(projectRoot: string, srcDir: string) {
-  const indexTs = join(srcDir, 'index.ts');
+function checkIndexFileExists(srcDir: string) {
   const indexTsx = join(srcDir, 'index.tsx');
 
-  if (existsSync(indexTs) && !existsSync(indexTsx)) {
-    console.log('🔄 Renaming index.ts to index.tsx...');
-    renameSync(indexTs, indexTsx);
-    console.log('✅ Renamed index.ts to index.tsx\n');
-    
-    // Update package.json to reflect the change from index.ts to index.tsx
-    await updatePackageJsonForIndexRename(projectRoot);
-  } else if (existsSync(indexTsx)) {
-    console.log('ℹ️  index.tsx already exists, skipping rename\n');
+  if (!existsSync(indexTsx)) {
+    console.log('⚠️  src/index.tsx not found. Frontend requires index.tsx to exist.');
+    console.log('   Please ensure src/index.tsx exists before continuing.');
+    process.exit(1);
   }
+  
+  console.log('✅ src/index.tsx exists, proceeding with frontend initialization\n');
 }
 
 async function createDevTsx(srcDir: string) {
@@ -735,24 +737,7 @@ async function createPageWithScript(pageName: string, force: boolean = false) {
   }
 }
 
-async function updatePackageJsonForIndexRename(projectRoot: string) {
-  const packageJsonPath = join(projectRoot, 'package.json');
-  
-  if (!existsSync(packageJsonPath)) {
-    console.log('⚠️  package.json not found, skipping update');
-    return;
-  }
 
-  const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-  
-  // Update main entry point from index.ts to index.tsx
-  if (packageJson.module === 'src/index.ts') {
-    packageJson.module = 'src/index.tsx';
-  }
-
-  writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
-  console.log('✅ Updated package.json module to use index.tsx');
-}
 
 async function updateTsConfigForCssModules(projectRoot: string) {
   const tsConfigPath = join(projectRoot, 'tsconfig.json');
@@ -802,13 +787,7 @@ async function updatePackageJson(_projectRoot: string) {
     packageJson.scripts = {};
   }
 
-  // Use regex to replace all src/index.ts with src/index.tsx in scripts
-  Object.keys(packageJson.scripts).forEach(scriptName => {
-    const scriptValue = packageJson.scripts[scriptName];
-    if (typeof scriptValue === 'string') {
-      packageJson.scripts[scriptName] = scriptValue.replace(/src\/index\.ts/g, 'src/index.tsx');
-    }
-  });
+  // No index.ts replacement needed - frontend assumes index.tsx already exists
 
   writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
 }
