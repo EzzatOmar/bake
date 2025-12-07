@@ -7,10 +7,10 @@ export default new Elysia({ prefix: '/api/health' })
 
     if (error) {
       set.status = error.statusCode;
-      return {
+      return Response.json({
         code: error.code,
         message: error.externalMessage?.en ?? 'An error occurred',
-      };
+      }, { status: error.statusCode });
     }
 
     return result;
