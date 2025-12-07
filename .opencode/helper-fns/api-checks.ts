@@ -8,7 +8,7 @@ import {
     findDefaultExportDeclaration,
 } from "./ts-analyzer";
 import ts from 'typescript';
-import type { TCheckResult } from "../plugin/vb";
+import type { TCheckResult } from "../backup/vb";
 
 
 // ===== ELYSIA PATTERN ASSERTIONS =====

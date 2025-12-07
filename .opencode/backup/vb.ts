@@ -171,6 +171,7 @@ export const CustomToolsPlugin: Plugin = async (ctx) => {
 
           const message = apiCheckResult?.message;
           if(message) {
+            ctx.client.session.command
             await ctx.client.session.prompt({path: {id: input.sessionID}, body: {parts: [{
               type: 'text',
               text: message,
