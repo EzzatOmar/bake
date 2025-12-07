@@ -41,11 +41,14 @@ console.log(`Created connection file: src/database/${dbName}/conn.${dbName}.ts`)
 
 // Create custom schema file
 const customSchemaContent = `// Custom schema for ${dbName} database
+import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+
 // Add your custom tables here
 
-export const customSchema = {
-  // Add your custom tables here
-};
+// export const mytable = sqliteTable("mytable", {
+//   id: text("id").primaryKey(),
+//   name: text("name").notNull(),
+// });
 `;
 
 await writeFile(path.join(dbDir, `schema.custom.${dbName}.ts`), customSchemaContent, "utf8");
@@ -139,110 +142,47 @@ export type ${dbName}Db = typeof ${dbName}Db;
 await writeFile(connFile, updatedConnContent, "utf8");
 console.log(`Updated "${connFile}": combined authSchema and customSchema.`);
 
-// Create middleware function for session resolution
-const errorCode = `FX_${dbName.toUpperCase()}_SESSION_NOT_FOUND`;
+// Create Elysia auth plugin with macro for session resolution
+const pluginContent = `import { Elysia } from "elysia";
+import { auth } from "./auth.${dbName}";
 
-const middlewareContent = `import type { auth } from "@/src/database/${dbName}/auth.${dbName}.ts"
-import { ErrCode } from "@/src/error/err.enum";
+/**
+ * Elysia plugin for ${dbName} authentication
+ *
+ * Provides { auth: true } macro for protected routes.
+ * Use this plugin in child API files to get { user, session } types.
+ *
+ * Note: auth.handler is mounted separately in api-router.ts to expose /api/auth/* endpoints.
+ *
+ * Usage:
+ * \`\`\`typescript
+ * import { ${dbName}AuthPlugin } from "@/src/database/${dbName}/plugin.auth.${dbName}";
+ *
+ * export default new Elysia({ prefix: '/api/foo' })
+ *   .use(${dbName}AuthPlugin)
+ *   .get('/me', ({ user }) => user, { auth: true })  // Protected route
+ *   .get('/public', () => 'hello')                   // Public route
+ * \`\`\`
+ */
+export const ${dbName}AuthPlugin = new Elysia({ name: "auth-${dbName}-plugin" })
+  .macro({
+    auth: {
+      async resolve({ status, request: { headers } }) {
+        const session = await auth.api.getSession({ headers });
+        if (!session) return status(401);
+        return { user: session.user, session: session.session };
+      },
+    },
+  });
 
-export type TPortal = {
-    auth: typeof auth;
-}
-
-export type TArgs = {
-    headers: Headers;
-}
-
-export type TAuthSession = {
-    session: {
-        id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        userId: string;
-        expiresAt: Date;
-        token: string;
-        ipAddress?: string | null | undefined;
-        userAgent?: string | null | undefined;
-    }
-    user: {
-        id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        email: string;
-        emailVerified: boolean;
-        name: string;
-    }
-}
-
-
-export async function fxResolveSession(portal: TPortal, args: TArgs): Promise<TErrTuple<TAuthSession>> {
-  let authSession:TAuthSession | null = await portal.auth.api.getSession(args);
-
-  if(!authSession) {
-    return [null, {
-        code: ErrCode.${errorCode},
-        statusCode: 401,
-        externalMessage: { en: 'Session not found', de: 'Sitzung nicht gefunden', fr: 'Session non trouvée' },
-        internalMessage: 'Session not found',
-    }];
-  }
-
-  return [authSession, null];
-}
+// Type inference from Better Auth
+export type TAuthSession = typeof auth.$Infer.Session;
+export type TAuthUser = typeof auth.$Infer.Session.user;
 `;
 
-const middlewareDir = path.join(projectRoot, "src/function/middleware");
-const middlewareFile = path.join(middlewareDir, `fx.${dbName}-session.ts`);
-
-// Ensure middleware directory exists
-await mkdir(middlewareDir, { recursive: true });
-
-await writeFile(middlewareFile, middlewareContent, "utf8");
-console.log(`Created middleware file: src/function/middleware/fx.${dbName}-session.ts`);
-
-// Update error enum file
-const errEnumFile = path.join(projectRoot, "src/error/err.enum.ts");
-let errEnumContent = await readFile(errEnumFile, "utf8");
-
-// Check if error code already exists
-if (!errEnumContent.includes(errorCode)) {
-  // Find the last enum entry before the closing brace
-  const enumPattern = /(export enum ErrCode \{[\s\S]*?)([\s]*\})/;
-  const match = errEnumContent.match(enumPattern);
-  
-  if (match) {
-    // Insert the new error code before the closing brace
-    // Add a comma to the previous line if it doesn't have one
-    let enumBody = match[1];
-    const lastCommaIndex = enumBody.lastIndexOf(',');
-    const lastSemicolonIndex = enumBody.lastIndexOf(';');
-    const closingBraceIndex = enumBody.lastIndexOf('\n');
-    
-    // If the last line doesn't end with a comma, add one
-    if (lastCommaIndex < closingBraceIndex && lastSemicolonIndex < closingBraceIndex) {
-      const lastLineBreak = enumBody.lastIndexOf('\n', closingBraceIndex - 1);
-      if (lastLineBreak !== -1) {
-        const beforeLastLine = enumBody.substring(0, lastLineBreak);
-        const lastLine = enumBody.substring(lastLineBreak, closingBraceIndex);
-        
-        // Only add comma if the line has content and doesn't already have a comma
-        if (lastLine.trim() && !lastLine.includes(',')) {
-          enumBody = beforeLastLine + lastLine.trimEnd() + ',\n';
-        }
-      }
-    }
-    
-    const newEnumContent = enumBody + `\n  ${errorCode},\n` + match[2];
-    errEnumContent = errEnumContent.replace(enumPattern, newEnumContent);
-    
-    await writeFile(errEnumFile, errEnumContent, "utf8");
-    console.log(`Added error code "${errorCode}" to src/error/err.enum.ts`);
-  } else {
-    console.error(`Could not parse error enum file. Please manually add: ${errorCode}`);
-  }
-} else {
-  console.log(`Error code "${errorCode}" already exists in err.enum.ts`);
-}
+const pluginFile = path.join(dbDir, `plugin.auth.${dbName}.ts`);
+await writeFile(pluginFile, pluginContent, "utf8");
+console.log(`Created auth plugin: src/database/${dbName}/plugin.auth.${dbName}.ts`);
 
 // Add auth handler to router
 console.log('\n🔧 Adding auth handler to router...');
@@ -262,10 +202,10 @@ if (indexPath) {
     console.log(`✅ ${result.message}`);
   } else {
     // Add comment at top of file indicating this better-auth instance is not added
-    const commentToAdd = `// NOTE: better-auth for database "${dbName}" is installed but not added to router.\n// ${result.message}\n// Import: import { auth } from "@/src/database/${dbName}/auth.${dbName}";\n// Route: "/api/auth/*": auth.handler,\n\n`;
-    
+    const commentToAdd = `// NOTE: better-auth for database "${dbName}" is installed but not added to router.\n// ${result.message}\n// Import: import { auth } from "@/src/database/${dbName}/auth.${dbName}";\n// Mount in api-router.ts: .mount(auth.handler)\n\n`;
+
     let indexContent = await readFile(indexPath, "utf8");
-    
+
     // Check if comment already exists
     if (!indexContent.includes(`better-auth for database "${dbName}"`)) {
       indexContent = commentToAdd + indexContent;
@@ -278,9 +218,9 @@ if (indexPath) {
   }
 } else {
   console.log('⚠️  src/index.tsx or src/index.ts not found, skipping router update');
-  console.log('📝 Please manually add the following to your router:');
+  console.log('📝 Please manually add the following to api-router.ts:');
   console.log(`   Import: import { auth } from "@/src/database/${dbName}/auth.${dbName}";`);
-  console.log(`   Route: "/api/auth/*": auth.handler,`);
+  console.log(`   Mount: .mount(auth.handler)`);
 }
 
 console.log('\n✅ Better-auth installation completed!');
@@ -288,9 +228,19 @@ console.log('\n📋 Files created/updated:');
 console.log(`   - src/database/${dbName}/auth.${dbName}.ts`);
 console.log(`   - src/database/${dbName}/schema.better-auth.${dbName}.ts`);
 console.log(`   - src/database/${dbName}/conn.${dbName}.ts (updated)`);
-console.log(`   - src/function/middleware/fx.${dbName}-session.ts`);
-console.log(`   - src/error/err.enum.ts (updated)`);
-if (indexPath) {
-  console.log(`   - ${path.relative(projectRoot, indexPath)} (router updated)`);
-}
+console.log(`   - src/database/${dbName}/plugin.auth.${dbName}.ts`);
+console.log(`   - src/api-router.ts (.mount(auth.handler) added)`);
+
+console.log('\n📖 Two-part setup:');
+console.log('');
+console.log('   1. api-router.ts - Exposes /api/auth/* endpoints (login, signup, etc.)');
+console.log(`      .mount(auth.handler)  // Already added`);
+console.log('');
+console.log('   2. Child API files - Use plugin for { user, session } types:');
+console.log(`      import { ${dbName}AuthPlugin } from "@/src/database/${dbName}/plugin.auth.${dbName}";`);
+console.log('');
+console.log('      export default new Elysia({ prefix: "/api/foo" })');
+console.log(`        .use(${dbName}AuthPlugin)`);
+console.log('        .get("/me", ({ user }) => user, { auth: true })  // Protected');
+console.log('        .get("/public", () => "hello")                   // Public');
 

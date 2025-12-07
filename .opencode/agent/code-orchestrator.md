@@ -121,6 +121,8 @@ Delegate in this order - **always**:
 **Implement**: LAST - after controllers exist
 **Nature**: Side effects, I/O - thin glue to expose core
 
+**Authentication**: When delegating, specify which auth plugin to use (e.g., `fooAuthPlugin`). The auth plugin must be `.use()`'d in the child API file (not api-router.ts) to get `{ user, session }` types. Use `{ auth: true }` for protected routes.
+
 ### 5. @frontend-builder (PAGE/COMPONENT Layer)
 **Use for**: Client-side React pages, UI components, and static asset integration  
 **Examples**: Next.js/React page components, Storybook stories, SVG/PNG asset imports, client-only hydration logic  

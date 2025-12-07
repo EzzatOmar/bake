@@ -40,6 +40,52 @@ export default new Elysia({ prefix: '/api/users' })
 - **Controller import**: Must import at least one `ctrl.*` file
 - **File location**: `src/api/<module>/api.<name>.ts`
 
+## Authentication
+
+Use the auth plugin directly in API files that need authentication. The plugin **must** be `.use()`'d in the child router (not api-router.ts) to get proper type inference for `{ user, session }`.
+
+### Setup
+
+```ts
+import { Elysia, t } from 'elysia';
+import { fooAuthPlugin } from '@/src/database/foo/plugin.auth.foo';
+
+export default new Elysia({ prefix: '/api/users' })
+  .use(fooAuthPlugin)  // REQUIRED for { user, session } types
+  .get('/me', ({ user }) => user, { auth: true })  // Protected
+  .get('/public', () => 'hello')                   // Public
+```
+
+### Key Points
+
+- **Plugin in child router**: Must `.use(authPlugin)` in each API file, not just api-router.ts
+- **Protected routes**: Add `{ auth: true }` - returns 401 if no session
+- **Public routes**: Omit `{ auth: true }` - no auth check
+- **Context access**: `{ user, session }` available in protected route handlers
+- **Type safety**: Types only resolve when plugin is used in same Elysia instance
+
+### Multiple Auth Instances
+
+Different API files can use different auth plugins:
+
+```ts
+// api.foo.ts - uses foo database auth
+import { fooAuthPlugin } from '@/src/database/foo/plugin.auth.foo';
+export default new Elysia({ prefix: '/api/foo' })
+  .use(fooAuthPlugin)
+  .get('/me', ({ user }) => user, { auth: true })
+
+// api.bar.ts - uses bar database auth
+import { barAuthPlugin } from '@/src/database/bar/plugin.auth.bar';
+export default new Elysia({ prefix: '/api/bar' })
+  .use(barAuthPlugin)
+  .get('/me', ({ user }) => user, { auth: true })
+
+// api.health.ts - no auth needed
+export default new Elysia({ prefix: '/api/health' })
+  .get('/', () => 'ok')
+```
+
 ## File Naming Convention
 
 Match the endpoint path with file name:
