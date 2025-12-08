@@ -201,28 +201,52 @@ body {
 }
 ```
 
-## Server Integration
+## Automatic Routing
 
-Frontend is served by Elysia static plugin in `src/index.ts`:
+**Important: Routes are automatically generated from HTML files in `src/page/`.** You do NOT need to manually register routes or edit any routing configuration.
+
+### How It Works
+
+The `htmlRoutes()` macro in `src/lib/html-routes.ts` scans the `src/page/` directory at build time and automatically creates routes based on file names:
+
+**Route Mapping Convention:**
+- `index.html` → `/` (homepage)
+- `dashboard.html` → `/dashboard`
+- `settings/index.html` → `/settings`
+- `settings/profile.html` → `/settings/profile`
+
+**Example:** When you create `src/page/dashboard.html`, it automatically becomes available at `/dashboard`. No manual route registration needed!
+
+### Server Integration
+
+The server in `src/index.ts` uses the `htmlRoutes()` macro to automatically discover and serve all HTML pages:
 
 ```ts
 import { Elysia } from 'elysia';
-import { staticPlugin } from '@elysiajs/static';
+import { htmlRoutes } from './lib/html-routes';
 import apiRouter from './api-router';
 
-const app = new Elysia()
-  .use(await staticPlugin({
-    prefix: '/',
-    assets: './src/page',
-    indexHTML: true
-  }))
+const app = new Elysia({
+  serve: {
+    routes: await htmlRoutes({ dir: './src/page' })
+  }
+})
   .use(apiRouter)
   .listen(3000);
 ```
 
-Pages are automatically served:
-- `/` → `src/page/index.html`
-- `/dashboard` → `src/page/dashboard.html`
+**Key Points:**
+- ✅ **Automatic discovery:** Just drop `.html` files in `src/page/`
+- ✅ **Convention-based routing:** File names become URL paths
+- ✅ **Nested routes:** Use subdirectories for nested paths
+- ✅ **Zero configuration:** No route registration code needed
+- ✅ **Build-time scanning:** Routes are determined at server startup
+
+The `htmlRoutes()` macro logs each discovered route on server startup:
+```
+[html-routes] dashboard.html -> /dashboard
+[html-routes] settings/profile.html -> /settings/profile
+```
 
 ## API Integration
 
