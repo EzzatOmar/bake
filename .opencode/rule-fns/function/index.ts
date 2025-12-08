@@ -18,6 +18,7 @@ import { ruleTxFirstParameterType } from "./rule.tx.first-parameter-type";
 import { ruleDatabaseConnectionImportsAreTypeOnly } from "./rule.fn.db-imports-type-only";
 import { ruleDbPortalType } from "./rule.fn.db-portal-type";
 import { ruleTestFileImportsTestingDb } from "./rule.fn.test-imports-testing-db";
+import { ruleSingleFunctionExport } from "./rule.fn.single-function-export";
 import { isInFunctionFolder } from "../../helper-fns/isInWhichFolder";
 
 // Helper functions to check function type
@@ -174,7 +175,11 @@ export async function checkAfterWrite(input: {
     // Check that database connection imports are type-only
     const r14 = await ruleDatabaseConnectionImportsAreTypeOnly(output);
     if (r14) result.push(r14);
-    
+
+    // Check single file, single function principle
+    const r15 = await ruleSingleFunctionExport(output);
+    if (r15) result.push(r15);
+
     return result;
   }
 
@@ -254,6 +259,10 @@ export async function checkAfterEdit(input: {
     // Check that database connection imports are type-only
     const r14 = await ruleDatabaseConnectionImportsAreTypeOnly(output);
     if (r14) result.push(r14);
-    
+
+    // Check single file, single function principle
+    const r15 = await ruleSingleFunctionExport(output);
+    if (r15) result.push(r15);
+
     return result;
   }

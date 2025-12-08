@@ -3,6 +3,7 @@ import { isTestFile } from "../../helper-fns/isTestFile";
 import { ruleGenNoTsFileInRoot } from "./rule.gen.no-ts-file-in-root";
 import { ruleGenNoJsFiles } from "./rule.gen.no-js-files";
 import { ruleGenDocumentation } from "./rule.gen.documentation";
+import { ruleGenTestDescribeWrapper } from "./rule.gen.test-describe-wrapper";
 
 export async function checkBeforeWrite(input: {
     tool: string;
@@ -70,7 +71,13 @@ export async function checkAfterWrite(input: {
     filePath: string;
   }) {
     const result: TRuleResult[] = [];
-    
+
+    // Test file specific rules
+    if (isTestFile({ filePath: output.filePath })) {
+        const r1 = await ruleGenTestDescribeWrapper(output);
+        if (r1) result.push(r1);
+    }
+
     return result;
   }
 
@@ -84,6 +91,12 @@ export async function checkAfterEdit(input: {
     filePath: string;
   }) {
     const result: TRuleResult[] = [];
-    
+
+    // Test file specific rules
+    if (isTestFile({ filePath: output.filePath })) {
+        const r1 = await ruleGenTestDescribeWrapper(output);
+        if (r1) result.push(r1);
+    }
+
     return result;
   }
