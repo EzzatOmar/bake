@@ -3,21 +3,24 @@ import type { TRuleFn } from "../rule-types";
 
 function getImportedFunctionNames(sourceFile: ts.SourceFile): string[] {
     const functionNames: string[] = [];
-    
+
     function visit(node: ts.Node) {
         if (ts.isImportDeclaration(node)) {
             const moduleSpecifier = node.moduleSpecifier;
-            if (ts.isStringLiteral(moduleSpecifier) && moduleSpecifier.text.includes('src/function/')) {
+            if (ts.isStringLiteral(moduleSpecifier) &&
+                (moduleSpecifier.text.includes('function/') || moduleSpecifier.text.includes('src/function/'))) {
                 if (node.importClause && node.importClause.namedBindings && ts.isNamedImports(node.importClause.namedBindings)) {
                     for (const element of node.importClause.namedBindings.elements) {
-                        functionNames.push(element.name.text);
+                        // Use the local name (alias if exists, otherwise original name)
+                        const localName = element.name.text;
+                        functionNames.push(localName);
                     }
                 }
             }
         }
         ts.forEachChild(node, visit);
     }
-    
+
     visit(sourceFile);
     return functionNames;
 }

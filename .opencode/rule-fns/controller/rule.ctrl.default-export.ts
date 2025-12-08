@@ -3,12 +3,25 @@ import type { TRuleFn } from "../rule-types";
 
 function hasDefaultExport(sourceFile: ts.SourceFile): boolean {
     let hasDefaultExport = false;
-    
+
     function visit(node: ts.Node) {
+        // Check for: export default ...
         if (ts.isExportAssignment(node) && !node.isExportEquals) {
             hasDefaultExport = true;
             return;
         }
+
+        // Check for: export default function/class/const with modifiers
+        if (node.modifiers) {
+            const hasExportKeyword = node.modifiers.some(mod => mod.kind === ts.SyntaxKind.ExportKeyword);
+            const hasDefaultKeyword = node.modifiers.some(mod => mod.kind === ts.SyntaxKind.DefaultKeyword);
+            if (hasExportKeyword && hasDefaultKeyword) {
+                hasDefaultExport = true;
+                return;
+            }
+        }
+
+        // Check for named exports with 'default': export { something as default }
         if (ts.isExportDeclaration(node) && node.exportClause && ts.isNamedExports(node.exportClause)) {
             for (const exportElement of node.exportClause.elements) {
                 if (exportElement.name.text === 'default') {
@@ -17,9 +30,10 @@ function hasDefaultExport(sourceFile: ts.SourceFile): boolean {
                 }
             }
         }
+
         ts.forEachChild(node, visit);
     }
-    
+
     visit(sourceFile);
     return hasDefaultExport;
 }

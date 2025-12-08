@@ -3,27 +3,37 @@ import type { TRuleFn } from "../rule-types";
 
 function getDefaultExportReturnType(sourceFile: ts.SourceFile): string | null {
     let returnType: string | null = null;
-    
+
     function visit(node: ts.Node) {
+        // Check for: export default function ...
+        if (ts.isFunctionDeclaration(node) && node.modifiers) {
+            const hasExportKeyword = node.modifiers.some(mod => mod.kind === ts.SyntaxKind.ExportKeyword);
+            const hasDefaultKeyword = node.modifiers.some(mod => mod.kind === ts.SyntaxKind.DefaultKeyword);
+            if (hasExportKeyword && hasDefaultKeyword) {
+                returnType = node.type ? node.type.getText(sourceFile) : null;
+                return;
+            }
+        }
+
         if (ts.isExportAssignment(node) && !node.isExportEquals) {
             // Handle function expression
             if (ts.isFunctionExpression(node.expression)) {
                 returnType = node.expression.type ? node.expression.type.getText(sourceFile) : null;
                 return;
             }
-            
+
             // Handle arrow function
             if (ts.isArrowFunction(node.expression)) {
                 returnType = node.expression.type ? node.expression.type.getText(sourceFile) : null;
                 return;
             }
-            
+
             // Handle identifier pointing to function
             if (ts.isIdentifier(node.expression)) {
                 const functionName = node.expression.text;
                 function findFunctionDeclaration(node: ts.Node): ts.FunctionDeclaration | ts.VariableDeclaration | null {
-                    if (ts.isFunctionDeclaration(node) && 
-                        node.name && 
+                    if (ts.isFunctionDeclaration(node) &&
+                        node.name &&
                         node.name.text === functionName) {
                         return node;
                     }
@@ -42,7 +52,7 @@ function getDefaultExportReturnType(sourceFile: ts.SourceFile): string | null {
                     });
                     return result;
                 }
-                
+
                 const funcDecl = findFunctionDeclaration(sourceFile);
                 if (funcDecl) {
                     if (ts.isFunctionDeclaration(funcDecl)) {
@@ -57,7 +67,7 @@ function getDefaultExportReturnType(sourceFile: ts.SourceFile): string | null {
         }
         ts.forEachChild(node, visit);
     }
-    
+
     visit(sourceFile);
     return returnType;
 }

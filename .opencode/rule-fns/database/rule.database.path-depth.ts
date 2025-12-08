@@ -8,12 +8,15 @@ import type { TRuleFn } from "../rule-types";
 export const ruleDatabasePathDepth: TRuleFn = async ({directory, filePath}) => {
     // Normalize both paths to forward slashes for cross-platform compatibility
     const normalizedDirectory = directory.replace(/\\/g, "/");
-    const normalizedFilePath = filePath.replace(/\\/g, "/");
-    
+    let normalizedFilePath = filePath.replace(/\\/g, "/");
+
+    // Remove Windows drive letter if present (e.g., "C:" from "C:/Users/...")
+    normalizedFilePath = normalizedFilePath.replace(/^[A-Z]:/, "");
+
     // Get relative path from directory
     const relativePath = normalizedFilePath.replace(normalizedDirectory + "/", "");
     const pathParts = relativePath.split("/");
-    
+
     // Expected structure: src/database/<dbname>/<file>.ts = 4 parts
     if (pathParts.length !== 4) {
         fileLog("ruleDatabasePathDepth", "invalid path depth", {
@@ -21,7 +24,7 @@ export const ruleDatabasePathDepth: TRuleFn = async ({directory, filePath}) => {
             depth: pathParts.length
         });
         return {
-            error: 
+            error:
                 "Database files must be at src/database/<dbname>/<file>.ts. " +
                 "No subdirectories or additional nesting allowed. " +
                 `Found: ${relativePath}. ` +

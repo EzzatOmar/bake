@@ -7,8 +7,14 @@ import type { TRuleFn } from "../rule-types";
  */
 export const ruleGenNoJsFiles: TRuleFn = async ({directory, filePath}) => {
     const relativePath = path.relative(directory, filePath);
-    
-    if (relativePath.endsWith(".js")) {
+
+    // Skip node_modules and .git directories
+    if (relativePath.includes('node_modules/') || relativePath.includes('.git/')) {
+        return;
+    }
+
+    // Check for .js extension (case-insensitive)
+    if (relativePath.toLowerCase().endsWith(".js")) {
         fileLog("ruleGenNoJsFiles", "js file detected", relativePath);
         return {
             error: ".js files are not allowed in this project. " +

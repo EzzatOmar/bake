@@ -3,8 +3,21 @@ import type { TRuleFn } from "../rule-types";
 
 function getDefaultExportParameters(sourceFile: ts.SourceFile): Array<{name: string, type: string}> {
     let parameters: Array<{name: string, type: string}> = [];
-    
+
     function visit(node: ts.Node) {
+        // Check for: export default function ...
+        if (ts.isFunctionDeclaration(node) && node.modifiers) {
+            const hasExportKeyword = node.modifiers.some(mod => mod.kind === ts.SyntaxKind.ExportKeyword);
+            const hasDefaultKeyword = node.modifiers.some(mod => mod.kind === ts.SyntaxKind.DefaultKeyword);
+            if (hasExportKeyword && hasDefaultKeyword) {
+                parameters = node.parameters.map(param => ({
+                    name: param.name ? (param.name as ts.Identifier).text : 'unknown',
+                    type: param.type ? param.type.getText(sourceFile) : 'any'
+                }));
+                return;
+            }
+        }
+
         if (ts.isExportAssignment(node) && !node.isExportEquals) {
             // Handle function expression
             if (ts.isFunctionExpression(node.expression)) {
@@ -14,7 +27,7 @@ function getDefaultExportParameters(sourceFile: ts.SourceFile): Array<{name: str
                 }));
                 return;
             }
-            
+
             // Handle arrow function
             if (ts.isArrowFunction(node.expression)) {
                 parameters = node.expression.parameters.map(param => ({
@@ -23,13 +36,13 @@ function getDefaultExportParameters(sourceFile: ts.SourceFile): Array<{name: str
                 }));
                 return;
             }
-            
+
             // Handle identifier pointing to function
             if (ts.isIdentifier(node.expression)) {
                 const functionName = node.expression.text;
                 function findFunctionDeclaration(node: ts.Node): ts.FunctionDeclaration | ts.VariableDeclaration | null {
-                    if (ts.isFunctionDeclaration(node) && 
-                        node.name && 
+                    if (ts.isFunctionDeclaration(node) &&
+                        node.name &&
                         node.name.text === functionName) {
                         return node;
                     }
@@ -48,7 +61,7 @@ function getDefaultExportParameters(sourceFile: ts.SourceFile): Array<{name: str
                     });
                     return result;
                 }
-                
+
                 const funcDecl = findFunctionDeclaration(sourceFile);
                 if (funcDecl) {
                     if (ts.isFunctionDeclaration(funcDecl)) {
@@ -69,7 +82,7 @@ function getDefaultExportParameters(sourceFile: ts.SourceFile): Array<{name: str
         }
         ts.forEachChild(node, visit);
     }
-    
+
     visit(sourceFile);
     return parameters;
 }
@@ -81,8 +94,13 @@ export const ruleControllerSecondParameterIsArgs: TRuleFn = async ({content, fil
         ts.ScriptTarget.Latest,
         true
     );
-    
+
     const parameters = getDefaultExportParameters(sourceFile);
+
+    if (parameters.length < 2) {
+        return; // Not enough parameters, rule doesn't apply (parameter count rule will catch this)
+    }
+
     const secondParam = parameters[1];
     if (!secondParam.type.includes('Args') && !secondParam.type.includes('args')) {
         return {
