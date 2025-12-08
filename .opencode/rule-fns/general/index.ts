@@ -4,6 +4,7 @@ import { ruleGenNoTsFileInRoot } from "./rule.gen.no-ts-file-in-root";
 import { ruleGenNoJsFiles } from "./rule.gen.no-js-files";
 import { ruleGenDocumentation } from "./rule.gen.documentation";
 import { ruleGenTestDescribeWrapper } from "./rule.gen.test-describe-wrapper";
+import { ruleNoApiRoutesInRoutes } from "./rule.gen.no-api-routes-in-routes";
 
 export async function checkBeforeWrite(input: {
     tool: string;
@@ -76,6 +77,10 @@ export async function checkAfterWrite(input: {
     if (isTestFile({ filePath: output.filePath })) {
         const r1 = await ruleGenTestDescribeWrapper(output);
         if (r1) result.push(r1);
+    } else {
+        // Content-based checks for non-test files
+        const r1 = await ruleNoApiRoutesInRoutes(output);
+        if (r1) result.push(r1);
     }
 
     return result;
@@ -95,6 +100,10 @@ export async function checkAfterEdit(input: {
     // Test file specific rules
     if (isTestFile({ filePath: output.filePath })) {
         const r1 = await ruleGenTestDescribeWrapper(output);
+        if (r1) result.push(r1);
+    } else {
+        // Content-based checks for non-test files
+        const r1 = await ruleNoApiRoutesInRoutes(output);
         if (r1) result.push(r1);
     }
 
