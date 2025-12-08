@@ -5,12 +5,51 @@
   "type": "module",
   "private": true,
   "scripts": {
+    // Development & Core
     "dev": "PORT=3000 bun run src/index.ts",
     "dev:human": "PORT=3001 bun run src/index.ts",
     "start": "bun run src/index.ts",
     "test": "CLAUDECODE=1 bun test",
     "typecheck": "bunx tsc --noEmit --project tsconfig.json",
-    "build": "bun build --target=bun --production --outdir=dist ./src/index.ts"
+    "build": "bun build --target=bun --production --outdir=dist ./src/index.ts",
+    // Database Management
+    "db:create": "bun run .opencode/scripts/create-database.ts",
+    "db:delete": "bun run .opencode/scripts/delete-database.ts",
+    "db:list": "bun run .opencode/scripts/list-databases.ts",
+    "db:install-auth": "bun run .opencode/scripts/install-better-auth.ts",
+    // Code Generation
+    "add:api": "bun run .opencode/scripts/add-api.ts",
+    "add:ctrl": "bun run .opencode/scripts/add-ctrl.ts",
+    "add:fn": "bun run .opencode/scripts/add-fn.ts",
+    "add:fx": "bun run .opencode/scripts/add-fx.ts",
+    "add:tx": "bun run .opencode/scripts/add-tx.ts",
+    // Frontend Management
+    "frontend:init": "bun run .opencode/scripts/init-frontend.ts",
+    "frontend:drop": "bun run .opencode/scripts/drop-frontend.ts",
+    "page:add": "bun run .opencode/scripts/add-page.ts",
+    // Development Tools
+    "code:graph": "bun run .opencode/scripts/code-graph.ts",
+    "errors:list": "bun run .opencode/scripts/list-error-codes.ts"
+    "dev": "PORT=3000 bun run src/index.ts",
+    "dev:human": "PORT=3001 bun run src/index.ts",
+    "start": "bun run src/index.ts",
+    "test": "CLAUDECODE=1 bun test",
+    "typecheck": "bunx tsc --noEmit --project tsconfig.json",
+    "build": "bun build --target=bun --production --outdir=dist ./src/index.ts",
+    "db:create": "bun run .opencode/scripts/create-database.ts",
+    "db:delete": "bun run .opencode/scripts/delete-database.ts",
+    "db:list": "bun run .opencode/scripts/list-databases.ts",
+    "db:install-auth": "bun run .opencode/scripts/install-better-auth.ts",
+    "add:api": "bun run .opencode/scripts/add-api.ts",
+    "add:ctrl": "bun run .opencode/scripts/add-ctrl.ts",
+    "add:fn": "bun run .opencode/scripts/add-fn.ts",
+    "add:fx": "bun run .opencode/scripts/add-fx.ts",
+    "add:tx": "bun run .opencode/scripts/add-tx.ts",
+    "frontend:init": "bun run .opencode/scripts/init-frontend.ts",
+    "frontend:drop": "bun run .opencode/scripts/drop-frontend.ts",
+    "page:add": "bun run .opencode/scripts/add-page.ts",
+    "code:graph": "bun run .opencode/scripts/code-graph.ts",
+    "errors:list": "bun run .opencode/scripts/list-error-codes.ts"
   },
   "devDependencies": {
     "@opencode-ai/plugin": "^1.0.134",
