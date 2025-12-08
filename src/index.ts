@@ -2,17 +2,23 @@ import { Elysia } from 'elysia';
 import { swagger } from '@elysiajs/swagger';
 import apiRouter from './api-router';
 import { staticPlugin } from '@elysiajs/static'
+import { htmlRoutes } from './lib/html-routes';
+
+// Auto-discover HTML files and create clean URL routes
+const routes = await htmlRoutes({ dir: './src/page' });
 
 /**
  * Main application
- * 
+ *
  * Put Frontend are automatically served from ./src/page
+ * Clean URLs are auto-generated (e.g., board.html -> /board)
  */
 const app = new Elysia({
   serve: {
     development: {
       hmr: false, // disables until: https://github.com/oven-sh/bun/issues/18258
-    }
+    },
+    routes,
   }
 })
   .use(swagger({
@@ -25,7 +31,7 @@ const app = new Elysia({
       },
     },
   }))
-  .use(await staticPlugin({ prefix: '/', assets: './src/page', indexHTML: true}))
+  .use(await staticPlugin({ prefix: '/', assets: './src/page', indexHTML: true }))
   .use(apiRouter)
   .onError(({ error, set }) => {
     console.error('Unhandled error:', error);
