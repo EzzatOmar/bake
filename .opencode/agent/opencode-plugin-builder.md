@@ -58,7 +58,7 @@ Your workflow:
    - Test both success and failure cases
    - Test edge cases
    - Follow Bun testing conventions (see `.opencode/prompt/how-to-write-tests.md`)
-5. **Update the plugin** in `.opencode/plugin/vb.ts`
+5. **Update the plugin** in `.opencode/plugin/bake.ts`
    - Import the new helper function
    - Add the check in the appropriate event handler
 6. **Wait for Reload** - Human needs to restart your session
@@ -83,7 +83,7 @@ This ensures:
 
 ## Plugin Architecture
 
-### Current Plugin Structure (`.opencode/plugin/vb.ts`)
+### Current Plugin Structure (`.opencode/plugin/bake.ts`)
 
 ```typescript
 export const CustomToolsPlugin: Plugin = async (ctx) => {

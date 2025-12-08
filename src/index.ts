@@ -1,28 +1,51 @@
+import { Elysia } from 'elysia';
+import { swagger } from '@elysiajs/swagger';
+import apiRouter from './api-router';
+import { staticPlugin } from '@elysiajs/static'
+import { htmlRoutes } from './lib/html-routes';
 
-try {
-  const server = Bun.serve({
-    routes: {
-      // Wildcard route for all routes that start with "/api/" and aren't otherwise matched
-      "/api/*": () => Response.json({ message: "Not found" }, { status: 404 }),
-      "/*": () => new Response("NOT FOUND", { status: 404 })
+// Auto-discover HTML files and create clean URL routes
+const routes = await htmlRoutes({ dir: './src/page' });
+
+/**
+ * Main application
+ *
+ * Put Frontend are automatically served from ./src/page
+ * Clean URLs are auto-generated (e.g., board.html -> /board)
+ */
+const app = new Elysia({
+  serve: {
+    development: {
+      hmr: false, // disables until: https://github.com/oven-sh/bun/issues/18258
     },
-
-    port: process.env.PORT || 3000,
-    development: process.env.NODE_ENV !== "production" && {
-      // Disable HMR temporarily due to CSS modules bug in Bun 1.3.3
-      // See: https://github.com/oven-sh/bun/issues/18258
-      hmr: false,
-
-      // Echo console logs from the browser to the server
-      console: true,
+    routes,
+  }
+})
+  .use(swagger({
+    path: '/docs',
+    documentation: {
+      info: {
+        title: 'Backed Kanban API',
+        version: '1.0.0',
+        description: 'API documentation for Backed Kanban',
+      },
     },
-    idleTimeout: 10, // 10 seconds
-  });
+  }))
+  .use(await staticPlugin({ prefix: '/', assets: './src/page', indexHTML: true }))
+  .use(apiRouter)
+  .onError(({ error, set }) => {
+    console.error('Unhandled error:', error);
+    set.status = 500;
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return {
+      error: 'Internal Server Error',
+      message: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+    };
+  })
+  .listen(process.env.PORT || 3000);
 
-  console.log(`Server running on http://localhost:${server.port}`);
-  console.log(`boards: http://localhost:${server.port}/index`);
-} catch (error) {
-  console.error('Failed to start server:', error);
-  process.exit(1);
-}
+console.log(`Server running on http://localhost:${app.server?.port}`);
+console.log(`API docs: http://localhost:${app.server?.port}/docs`);
 
+// Export app type for Eden client
+export type App = typeof app;
