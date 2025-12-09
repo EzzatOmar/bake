@@ -17,6 +17,7 @@ const app = new Elysia({
   serve: {
     development: {
       hmr: false, // disables until: https://github.com/oven-sh/bun/issues/18258
+      console: true,
     },
     routes,
   }
