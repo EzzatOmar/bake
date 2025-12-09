@@ -104,6 +104,27 @@ import { Elysia, t } from 'elysia';
 // -----------------------------------------------------------------------------
 
 export default new Elysia({ prefix: '${prefix}' })
+  // Handle validation errors gracefully
+  .onError(({ code, error, set }) => {
+    if (code === 'VALIDATION') {
+      set.status = 422;
+      // Extract the first validation error message
+      const validationError = error as unknown as { 
+        message: string;
+        all?: Array<{ message: string }>;
+        validator?: { Errors?: (value: unknown) => Generator<{ message: string }> };
+      };
+      
+      let message = 'Validation failed';
+      
+      // Try to get a meaningful error message
+      if (typeof validationError.message === 'string') {
+        message = validationError.message;
+      }
+      
+      return { type: 'VALIDATION_ERROR', message };
+    }
+  })
   /**
    * GET ${prefix}/:id
    *
